@@ -13,8 +13,6 @@
 
 #include <cstdio>
 #include <cstring>
-
-extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -23,7 +21,9 @@ extern "C" {
 #include "lcd_driver.h"
 #include "camera_driver.h"
 #include "video_pipeline.h"
-}
+
+#include "yolo26/yolo_inference.hpp"
+#include "yolo26/classes.hpp"
 
 static const char *TAG = "main";
 
@@ -33,8 +33,19 @@ static const char *TAG = "main";
 #define DISPLAY_HEIGHT      600     ///< LCD 显示高度
 #define NUM_FRAME_BUFFERS   2       ///< V4L2 帧缓冲数量
 
+// YOLO模型文件
+extern const uint8_t yolo26n_inference_espdl[] asm("_binary_yolo26n_640_espdl_start");
+
+// 测试图像
+extern const uint8_t image_start[] asm("_binary_12995_jpg_start");
+extern const uint8_t image_end[] asm("_binary_12995_jpg_end");
+
+// #define LCD_TEST // 启用LCD测试
+#define YOLO_TEST // 启用YOLO测试
+
 extern "C" void app_main(void)
 {
+#ifdef LCD_TEST
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "  Camera LCD Demo - Modular Architecture");
     ESP_LOGI(TAG, "  Target: ESP32-P4");
@@ -117,4 +128,25 @@ extern "C" void app_main(void)
 
     ESP_LOGI(TAG, "System running - Real-time camera preview on Core 0!");
     ESP_LOGI(TAG, "Pipeline: Camera -> V4L2 DQBUF -> Scale -> LCD DMA -> QBUF");
+#endif
+
+#ifdef YOLO_TEST
+    printf("\n");
+    printf("===YOLOv26n Inference Test===\n");
+
+    // 加载模型
+    dl::Model *model = new dl::Model((const char *)yolo26n_inference_espdl,
+                                     fbs::MODEL_LOCATION_IN_FLASH_RODATA);
+
+    // 初始化处理器
+    Yolo26Processor processor(YOLO_TARGET_K, YOLO_CONF_THRESH, names);
+
+    // 进行推理
+    // int count;
+    yolo_inference(model, processor, image_start, image_end);
+
+    // printf("Total Colonies: %u", (unsigned)count);
+    delete model;
+    printf("\n=== Test Complete ===\n");
+#endif
 }

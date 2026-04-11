@@ -17,3 +17,4 @@ dependencies:
   espressif/esp_lcd_ek79007: ^2.0.2
   espressif/esp_video: ^0.8.0
   espressif/esp_sccb_intf: ^0.0.8
+  espressif/esp-dl: =3.2.4
