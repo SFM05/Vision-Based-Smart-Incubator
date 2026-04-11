@@ -9,6 +9,52 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 0.5.3
+  espressif/dl_fft:
+    component_hash: 7dadbd644c0d7ba4733cc3726ec4cff6edf27b043725e1115861dec1609a3d28
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.3.1
+  espressif/esp-dl:
+    component_hash: 5130cf5ba89cb43865da942ddf23b39b1520855907cd91b68d3ad65dcf2305b6
+    dependencies:
+    - name: espressif/dl_fft
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=0.3.1'
+    - name: espressif/esp-dsp
+      registry_url: https://components.espressif.com
+      require: private
+      version: ==1.7.0
+    - name: espressif/esp_new_jpeg
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^0.6.1
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s3
+    - esp32p4
+    version: 3.2.4
+  espressif/esp-dsp:
+    component_hash: 42dce32d46ac93dc11f60d368e29a830e9661c7345d794b8a45c343479cae636
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.7.0
   espressif/esp_cam_sensor:
     component_hash: 7b110b08542aeae833895dacd74425e926dd36eed68ae1a26f2b6109e04ea984
     dependencies:
@@ -74,6 +120,22 @@ dependencies:
     targets:
     - esp32p4
     version: 2.0.2
+  espressif/esp_new_jpeg:
+    component_hash: e6af208a875abd0ecfc0213d3751a11b504b463ebde6930f24096047925fa5c1
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    version: 0.6.1
   espressif/esp_sccb_intf:
     component_hash: c071b189e49f40940722aea01a5489f873385cc39cd5b14012341135b85d1a9d
     dependencies:
@@ -117,10 +179,11 @@ dependencies:
       type: idf
     version: 5.5.3
 direct_dependencies:
+- espressif/esp-dl
 - espressif/esp_lcd_ek79007
 - espressif/esp_sccb_intf
 - espressif/esp_video
 - idf
-manifest_hash: 4c5dfa51b89bf78c762780a7d713c280b2958f274ea708ee199724c77113f0ce
+manifest_hash: 19427e5bb88ce36459b747379724c3c149434305dfd4a47894217f61c510c3a4
 target: esp32p4
 version: 2.0.0
