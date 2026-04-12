@@ -122,16 +122,29 @@ std::vector<Detection> yolo_inference(dl::Model *model,
         ESP_LOGE("YOLO_INFERENCE", "The width is not aligned with the model");
 
     // 预处理
+    TickType_t start_pre = xTaskGetTickCount();
     processor.preprocess(img, model->get_inputs());
+    TickType_t end_pre = xTaskGetTickCount();
     // esp_task_wdt_reset();
+    int lat_pre = (end_pre - start_pre) * portTICK_PERIOD_MS;
+    ESP_LOGI("YOLO_INFERENCE", "Preprocess latency: %d ms", lat_pre);
+    
 
     // 推理
+    TickType_t start_inf = xTaskGetTickCount();
     model->run();
+    TickType_t end_inf = xTaskGetTickCount();
     // esp_task_wdt_reset();
+    int lat_inf = (end_inf - start_inf) * portTICK_PERIOD_MS;
+    ESP_LOGI("YOLO_INFERENCE", "Inference latency: %d ms", lat_inf);
 
     // 后处理
+    TickType_t start_post = xTaskGetTickCount();
     auto results = processor.postprocess(model->get_outputs());
+    TickType_t end_post = xTaskGetTickCount();
     // esp_task_wdt_reset();
+    int lat_post = (end_post - start_post) * portTICK_PERIOD_MS;
+    ESP_LOGI("YOLO_INFERENCE", "Postprocess latency: %d ms", lat_post);
 
     return results;
 }

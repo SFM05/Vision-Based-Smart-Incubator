@@ -18,6 +18,8 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "esp_partition.h"
+#include "spi_flash_mmap.h"
 
 #include "lcd_driver.h"
 #include "camera_driver.h"
@@ -34,12 +36,6 @@ static const char *TAG = "main";
 #define DISPLAY_HEIGHT      600     ///< LCD 显示高度
 #define NUM_FRAME_BUFFERS   2       ///< V4L2 帧缓冲数量
 
-// YOLO模型文件
-extern const uint8_t yolo26n_inference_espdl[] asm("_binary_yolo26n_640_espdl_start");
-
-// 测试图像
-extern const uint8_t img_start[] asm("_binary_12995_jpg_start");
-extern const uint8_t img_end[] asm("_binary_12995_jpg_end");
 
 // #define LCD_TEST // 启用LCD测试
 #define YOLO_TEST // 启用YOLO测试
@@ -135,7 +131,31 @@ extern "C" void app_main(void)
     printf("\n");
     printf("===YOLOv26n Inference Test===\n");
 
-    auto img = decode_jpeg(img_start, size_t(img_end - img_start));
+    // 从分区表中读取图像的位置
+    const esp_partition_t *img_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_ANY,
+        ESP_PARTITION_SUBTYPE_ANY,
+        "image");
+
+    // 将分区映射到数据地址空间
+    const void *img_ptr;
+    esp_partition_mmap_handle_t img_handle;
+
+    esp_err_t err = esp_partition_mmap(
+        img_partition,
+        0,                       // 分区内偏移量（从头开始）
+        img_partition->size,     // 映射大小
+        ESP_PARTITION_MMAP_DATA, // 映射到数据空间
+        &img_ptr,                // 得到的指针
+        &img_handle              // 映射句柄，用于后续释放
+    );
+
+    if (err != ESP_OK)
+        ESP_LOGE(TAG, "Failed to map partition to data memory");
+
+    // 解码
+    auto img = decode_jpeg((uint8_t *)img_ptr, 651264);
+    spi_flash_munmap(img_handle); // 释放映射
 
     int center_x = img.width / 2;
     int center_y = img.height / 2;
@@ -152,8 +172,8 @@ extern "C" void app_main(void)
     img = resize(img, 640, 640);
 
     // 加载模型
-    dl::Model *model = new dl::Model((const char *)yolo26n_inference_espdl,
-                                     fbs::MODEL_LOCATION_IN_FLASH_RODATA);
+    dl::Model *model = new dl::Model("yolo26",
+                                     fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
 
     // 初始化处理器
     Yolo26Processor processor(128, 0.1f, names);
