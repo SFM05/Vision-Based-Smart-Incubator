@@ -11,10 +11,9 @@
  * 框架:      esp_video V4L2 + FreeRTOS
  */
 
-#include <cstdio>
+#include <iostream>
 #include <cstring>
-
-extern "C" {
+#include <utility>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -23,7 +22,9 @@ extern "C" {
 #include "lcd_driver.h"
 #include "camera_driver.h"
 #include "video_pipeline.h"
-}
+
+#include "yolo_inference.hpp"
+#include "classes.hpp"
 
 static const char *TAG = "main";
 
@@ -33,8 +34,19 @@ static const char *TAG = "main";
 #define DISPLAY_HEIGHT      600     ///< LCD 显示高度
 #define NUM_FRAME_BUFFERS   2       ///< V4L2 帧缓冲数量
 
+// YOLO模型文件
+extern const uint8_t yolo26n_inference_espdl[] asm("_binary_yolo26n_640_espdl_start");
+
+// 测试图像
+extern const uint8_t img_start[] asm("_binary_12995_jpg_start");
+extern const uint8_t img_end[] asm("_binary_12995_jpg_end");
+
+// #define LCD_TEST // 启用LCD测试
+#define YOLO_TEST // 启用YOLO测试
+
 extern "C" void app_main(void)
 {
+#ifdef LCD_TEST
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "  Camera LCD Demo - Modular Architecture");
     ESP_LOGI(TAG, "  Target: ESP32-P4");
@@ -117,4 +129,40 @@ extern "C" void app_main(void)
 
     ESP_LOGI(TAG, "System running - Real-time camera preview on Core 0!");
     ESP_LOGI(TAG, "Pipeline: Camera -> V4L2 DQBUF -> Scale -> LCD DMA -> QBUF");
+#endif
+
+#ifdef YOLO_TEST
+    printf("\n");
+    printf("===YOLOv26n Inference Test===\n");
+
+    auto img = decode_jpeg(img_start, size_t(img_end - img_start));
+
+    int center_x = img.width / 2;
+    int center_y = img.height / 2;
+    int img_size = std::max(img.width, img.height);
+    int left = std::max(0, center_x - img_size / 2);
+    int right = std::min(int(img.width), center_x + img_size / 2);
+    int top = std::max(0, center_y - img_size / 2);
+    int bottom = std::min(int(img.height), center_y + img_size / 2);
+
+    // 裁剪图像的中心部分
+    img = crop(img, left, top, right, bottom);
+
+    // 缩放至640*640
+    img = resize(img, 640, 640);
+
+    // 加载模型
+    dl::Model *model = new dl::Model((const char *)yolo26n_inference_espdl,
+                                     fbs::MODEL_LOCATION_IN_FLASH_RODATA);
+
+    // 初始化处理器
+    Yolo26Processor processor(128, 0.1f, names);
+
+    // 进行推理
+    auto result = yolo_inference(model, img, processor);
+
+    printf("Total Colonies: %u", (unsigned)result.size());
+    delete model;
+    printf("\n=== Test Complete ===\n");
+#endif
 }
