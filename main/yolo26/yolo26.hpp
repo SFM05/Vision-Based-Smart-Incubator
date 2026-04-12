@@ -1,19 +1,16 @@
 #pragma once
-#include "dl_image_process.hpp"
-#include "esp_heap_caps.h"
-#include "dl_image_jpeg.hpp"
-#include "dl_tensor_base.hpp"
-#include "classes.hpp"
+
 #include <vector>
 #include <cmath>
 #include <algorithm>
 #include <cassert>
 #include <map>
 #include <string>
-
-// Default Configuration
-#define YOLO_TARGET_K 128
-#define YOLO_CONF_THRESH 0.10f
+#include "dl_image_process.hpp"
+#include "esp_heap_caps.h"
+#include "dl_image_jpeg.hpp"
+#include "dl_tensor_base.hpp"
+#include "classes.hpp"
 
 struct Detection {
     float x1, y1, x2, y2;
@@ -26,7 +23,6 @@ private:
     // --- constants ---
     const int num_classes = 1;
     const int strides[3] = {8, 16, 32};
-    bool is_resized = false; // Track if we need to free a resized image
     
     // --- State (Calculated/Configured) ---
     std::vector<int> grid_sizes; // Calculated in preprocess
@@ -59,8 +55,7 @@ public:
      * @param thresh Confidence threshold (Default: 0.10f)
      * @param classes Class name array (Default: coco_classes)
      */
-    Yolo26Processor(int k = YOLO_TARGET_K, float thresh = YOLO_CONF_THRESH, const char** classes = names) 
-        : target_k(k), conf_thresh(thresh), class_names(classes) {
+    Yolo26Processor(int k, float thresh, const char** classes): target_k(k), conf_thresh(thresh), class_names(classes) {
         // Reserve memory for grids
         grid_sizes.resize(3);
         
@@ -82,49 +77,6 @@ public:
     }
     
     ~Yolo26Processor() {
-    }
-
-    /**
-     * @brief Decodes JPEG to RGB888.
-     */
-    dl::image::img_t decode_jpeg(const uint8_t* jpg_data, size_t jpg_len) {
-        dl::image::jpeg_img_t jpeg_img = {
-            .data = (void*)jpg_data,
-            .data_len = jpg_len
-        };
-        return dl::image::sw_decode_jpeg(jpeg_img, dl::image::DL_IMAGE_PIX_TYPE_RGB888);
-    }
-
-    /**
-     * @brief Checks and resizes image to match model input shape if necessary.
-     * 
-     * @param img Input image
-     * @param inputs Model input map
-     * @return dl::image::img_t Resized image (or original if no resize needed)
-     */
-    dl::image::img_t resize(dl::image::img_t& img, const std::map<std::string, dl::TensorBase*>& inputs) {
-        if (inputs.empty()) return img;
-        dl::TensorBase* input_tensor = inputs.begin()->second;
-        
-        int model_h = input_tensor->shape[1];
-        int model_w = input_tensor->shape[2];
-        
-        if (img.width != model_w || img.height != model_h) {
-            dl::image::img_t resized_img;
-            resized_img.width = model_w;
-            resized_img.height = model_h;
-            resized_img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888;
-            resized_img.data = heap_caps_malloc(dl::image::get_img_byte_size(resized_img), MALLOC_CAP_DEFAULT);
-            
-            dl::image::ImageTransformer transformer;
-            transformer.set_src_img(img)
-                       .set_dst_img(resized_img)
-                       .transform();
-            
-            return resized_img; 
-        }
-        
-        return img;
     }
 
     /**
