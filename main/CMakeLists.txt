@@ -1,7 +1,8 @@
 set(srcs "main.cpp"
          "camera/camera_driver.c"
          "lcd/lcd_driver.c"
-         "pipeline/video_pipeline.c")
+         "pipeline/video_pipeline.c"
+         "yolo26/yolo_inference.cpp")
 set(requires esp_lcd
              driver
              esp_video

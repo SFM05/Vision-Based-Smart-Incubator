@@ -26,7 +26,9 @@
 #include "video_pipeline.h"
 
 #include "yolo_inference.hpp"
+#include "yolo26.hpp"
 #include "classes.hpp"
+#include "esp_heap_caps.h"
 
 static const char *TAG = "main";
 
@@ -151,7 +153,11 @@ extern "C" void app_main(void)
     );
 
     if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to map partition to data memory");
+        return;
+    }
+    ESP_LOGI(TAG, "Image mapped to data memory");
 
     // 解码
     auto img = decode_jpeg((uint8_t *)img_ptr, 651264);
@@ -166,23 +172,37 @@ extern "C" void app_main(void)
     int bottom = std::min(int(img.height), center_y + img_size / 2);
 
     // 裁剪图像的中心部分
-    img = crop(img, left, top, right, bottom);
+    auto img_cropped = crop(img, left, top, right, bottom);
+    // auto img_cropped = crop(img, 0, 0, 640, 640);
+    if (img_cropped.data != img.data)
+        heap_caps_free(img.data);
 
     // 缩放至640*640
-    img = resize(img, 640, 640);
+    // auto img_resized = resize(img_cropped, 640, 640);
+    auto img_resized=img_cropped;
+    if (img_resized.data != img_cropped.data)
+        heap_caps_free(img_cropped.data);
+    assert(heap_caps_check_integrity_all(true) && "Heap Corruption");
 
     // 加载模型
     dl::Model *model = new dl::Model("yolo26",
                                      fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
+    ESP_LOGI(TAG, "Model loaded");
+    std::cout<<heap_caps_get_free_size(MALLOC_CAP_SPIRAM)<<'\n';
+
 
     // 初始化处理器
-    Yolo26Processor processor(128, 0.1f, names);
+    const char* names[] = {"Colony"};
+    constexpr int TARGET_K = 128;
+    constexpr float CONF_THRESH = 0.25f;
+    YOLO26 processor(model, TARGET_K, CONF_THRESH, names);
+    vTaskDelay(100);
 
-    // 进行推理
-    auto result = yolo_inference(model, img, processor);
+    // 推理
+    auto results = yolo_inference(model, img_resized, processor);
 
-    printf("Total Colonies: %u", (unsigned)result.size());
+    ESP_LOGI(TAG, "Total Colonies: %u", (unsigned)results.size());
+    
     delete model;
-    printf("\n=== Test Complete ===\n");
 #endif
 }
