@@ -74,6 +74,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+# OpenCode agent instructions (generated, repo-specific)
+AGENTS.md
+
 # User-specific configuration files
 *.user
 *.workspace # General workspace files, can be from various tools

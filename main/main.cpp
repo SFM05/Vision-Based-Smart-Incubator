@@ -174,12 +174,14 @@ extern "C" void app_main(void)
     // 裁剪图像的中心部分
     auto img_cropped = crop(img, left, top, right, bottom);
     // auto img_cropped = crop(img, 0, 0, 640, 640);
+    // 检查二者地址是否相同，避免提前释放
     if (img_cropped.data != img.data)
         heap_caps_free(img.data);
 
     // 缩放至640*640
-    // auto img_resized = resize(img_cropped, 640, 640);
-    auto img_resized=img_cropped;
+    auto img_resized = resize(img_cropped, 640, 640);
+    // auto img_resized=img_cropped;
+    // 检查二者地址是否相同，避免提前释放
     if (img_resized.data != img_cropped.data)
         heap_caps_free(img_cropped.data);
     assert(heap_caps_check_integrity_all(true) && "Heap Corruption");
