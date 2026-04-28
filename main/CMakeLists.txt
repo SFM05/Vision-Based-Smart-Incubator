@@ -3,14 +3,15 @@ set(srcs "main.cpp"
          "lcd/lcd_driver.c"
          "pipeline/video_pipeline.c"
          "yolo26/yolo_inference.cpp"
-         "yolo26/image.cpp")
+         "yolo26/image_auto.cpp")
 set(requires esp_lcd
              driver
              esp_video
              esp_lcd_ek79007
              freertos
              esp-dl
-             esp_partition)
+             esp_partition
+             yolo26)
 set(include_dirs "."
                  "camera"
                  "lcd"
@@ -34,7 +35,13 @@ idf_component_register(SRCS ${srcs}
 
 # This is added after the registery for esp-dl
 
+
+target_add_aligned_binary_data(${COMPONENT_LIB} "${CMAKE_CURRENT_SOURCE_DIR}/yolo26/12995.jpg" BINARY)
+
 set(model ${CMAKE_CURRENT_SOURCE_DIR}/yolo26/yolo26n_640.espdl)
 esptool_py_flash_to_partition(flash "yolo26" "${model}")
+
 set(img ${CMAKE_CURRENT_SOURCE_DIR}/yolo26/12995.jpg)
+file(SIZE "${img}" IMG_FILE_SIZE)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE IMAGE_SIZE=${IMG_FILE_SIZE})
 esptool_py_flash_to_partition(flash "image" "${img}")
