@@ -5,7 +5,7 @@
 
 namespace Image
 {
-    auto deleter = [](uint8_t *p)
+    constexpr auto deleter = [](uint8_t *p)
     { heap_caps_free(static_cast<void *>(p)); };
 
     ImageAuto::ImageAuto(uint16_t width,

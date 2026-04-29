@@ -34,10 +34,6 @@ idf_component_register(SRCS ${srcs}
 
 
 # This is added after the registery for esp-dl
-
-
-target_add_aligned_binary_data(${COMPONENT_LIB} "${CMAKE_CURRENT_SOURCE_DIR}/yolo26/12995.jpg" BINARY)
-
 set(model ${CMAKE_CURRENT_SOURCE_DIR}/yolo26/yolo26n_640.espdl)
 esptool_py_flash_to_partition(flash "yolo26" "${model}")
 

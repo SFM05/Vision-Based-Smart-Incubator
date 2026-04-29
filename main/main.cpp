@@ -30,6 +30,7 @@
 #include "yolo26.hpp"
 #include "classes.hpp"
 #include "esp_heap_caps.h"
+#include "esp_heap_task_info.h"
 
 static const char *TAG = "main";
 
@@ -39,26 +40,8 @@ static const char *TAG = "main";
 #define DISPLAY_HEIGHT 600  ///< LCD 显示高度
 #define NUM_FRAME_BUFFERS 2 ///< V4L2 帧缓冲数量
 
-
-extern const uint8_t jpg_start[] asm("_binary_12995_jpg_start");
-extern const uint8_t jpg_end[] asm("_binary_12995_jpg_end");
-
 // #define LCD_TEST // 启用LCD测试
 #define YOLO_TEST // 启用YOLO测试
-
-#include "esp_heap_task_info.h"
-
-void heap_info()
-{
-    heap_caps_check_integrity_all(true);
-
-    std::string heap_info;
-    heap_info = std::format("Free PSARAM heap size: {}", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("main_heap_monitor", "%s", heap_info.c_str());
-    heap_info = std::format("Free L2MEM heap size: {}", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-    ESP_LOGI("main_heap_monitor", "%s", heap_info.c_str());
-}
-
 
 extern "C" void app_main(void)
 {
@@ -178,90 +161,56 @@ extern "C" void app_main(void)
     }
     ESP_LOGI(TAG, "Image mapped to data memory");
 
+    // 解码
+    auto img = decode_jpeg((uint8_t *)img_ptr, IMAGE_SIZE);
+    spi_flash_munmap(img_handle); // 释放映射
+    ESP_LOGI(TAG, "Image decoded");
+
+    int center_x = img.width() / 2;
+    int center_y = img.height() / 2;
+    int img_size = std::max(img.width(), img.height());
+    int left = std::max(0, center_x - img_size / 2);
+    int right = std::min(int(img.width()), center_x + img_size / 2);
+    int top = std::max(0, center_y - img_size / 2);
+    int bottom = std::min(int(img.height()), center_y + img_size / 2);
+
+    // 裁剪图像的中心部分
+    auto img_cropped = crop(img, {left, top, right, bottom});
+    // auto img_cropped = crop(img, 0, 0, 640, 640);
+    img.reset();
+    ESP_LOGI(TAG, "Image cropped");
+
+    // 缩放至640*640
+    auto img_resized = resize(img_cropped, 640, 640, true);
+    // auto img_resized = img_cropped;
+    // auto img_resized = resize(img_cropped, 640, 320,
+    //                           {0, 0, 160, 160});
+    img_cropped.reset();
+    ESP_LOGI(TAG, "Image resized");
+
     // 加载模型
     dl::Model *model = new dl::Model("yolo26",
                                      fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
 
-    // Option 2: Custom classes (must match your training labels)
-    const char *my_classes[] = {"Colony"};
-    YOLO26 processor(model, YOLO_TARGET_K, YOLO_CONF_THRESH, my_classes);
+    ESP_LOGI(TAG, "Model loaded");
 
-    auto img = processor.decode_jpeg((uint8_t *)img_ptr, size_t(jpg_end-jpg_start));
-    spi_flash_munmap(img_handle); // 释放映射
-
-    // B. Preprocess: letterbox + SIMD LUT quantization → written directly into model input RAM
-    processor.preprocess(img);
-    heap_caps_free(img.data); // free JPEG decode buffer
+    // 初始化处理器
+    const char *names[] = {"Colony"};
+    constexpr int TARGET_K = 128;
+    constexpr float CONF_THRESH = 0.25f;
+    YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
     vTaskDelay(100);
 
-    // C. Hardware Inference
-    model->run();
+    // 推理
+    auto results = yolo_inference(model, img_resized, processor);
     vTaskDelay(100);
 
-    // D. Postprocess (NMS-Free, top-K by score)
-    auto results = processor.postprocess(model->get_outputs());
-
-    ESP_LOGI(TAG, "Results: %d", results.size());
+    ESP_LOGI(TAG, "Total Colonies: %u", (unsigned)results.size());
 
     delete model;
-    
+
     heap_caps_check_integrity_all(true);
-
-    // heap_info();
-
-    // // 解码
-    // auto img = decode_jpeg((uint8_t *)img_ptr, 651264);
-    // spi_flash_munmap(img_handle); // 释放映射
-    // ESP_LOGI(TAG, "Image decoded");
-    // heap_info();
-
-    // int center_x = img.width() / 2;
-    // int center_y = img.height() / 2;
-    // int img_size = std::max(img.width(), img.height());
-    // int left = std::max(0, center_x - img_size / 2);
-    // int right = std::min(int(img.width()), center_x + img_size / 2);
-    // int top = std::max(0, center_y - img_size / 2);
-    // int bottom = std::min(int(img.height()), center_y + img_size / 2);
-
-    // // 裁剪图像的中心部分
-    // auto img_cropped = crop(img, left, top, right, bottom);
-    // // auto img_cropped = crop(img, 0, 0, 640, 640);
-    // img.reset();
-    // ESP_LOGI(TAG, "Image cropped");
-    // heap_info();
-
-    // // 缩放至640*640
-    // auto img_resized = resize(img_cropped, 640, 640);
-    // // auto img_resized = img_cropped;
-    // img_cropped.reset();
-    // ESP_LOGI(TAG, "Image resized");
-    // heap_info();
-
-    // // 加载模型
-    // // dl::Model *model = new dl::Model("yolo26",
-    // //                                  fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
-    // for (int i=0;i<20;i++)
-    // {
-    //     auto target_img = img_resized;
-    // std::unique_ptr<dl::Model> model = std::make_unique<dl::Model>("yolo26",
-    //                                                                fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
-
-    // ESP_LOGI(TAG, "Model loaded");
-    // heap_info();
-
-    // // 初始化处理器
-    // const char *names[] = {"Colony"};
-    // constexpr int TARGET_K = 128;
-    // constexpr float CONF_THRESH = 0.25f;
-    // YOLO26 processor=YOLO26(model.get(), TARGET_K, CONF_THRESH, names);
-    // vTaskDelay(100);
-
-    // // 推理
-    // auto results = yolo_inference(model.get(), target_img, processor);
-    // vTaskDelay(100);
-
-    // ESP_LOGI(TAG, "Total Colonies: %u", (unsigned)results.size());
-    // heap_info();
-    // }
+    TaskHandle_t xHandle = xTaskGetCurrentTaskHandle();
+    heap_caps_print_single_task_stat_overview(NULL, xHandle);
 #endif
 }
