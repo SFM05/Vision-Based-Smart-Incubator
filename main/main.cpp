@@ -28,7 +28,6 @@
 
 #include "yolo_inference.hpp"
 #include "yolo26.hpp"
-#include "classes.hpp"
 #include "esp_heap_caps.h"
 #include "esp_heap_task_info.h"
 
@@ -39,6 +38,16 @@ static const char *TAG = "main";
 #define DISPLAY_WIDTH 1024  ///< LCD 显示宽度
 #define DISPLAY_HEIGHT 600  ///< LCD 显示高度
 #define NUM_FRAME_BUFFERS 2 ///< V4L2 帧缓冲数量
+
+// #define LCD_TEST // 启用LCD测试
+#define YOLO_TEST // 启用YOLO测试
+
+// YOLO模型文件
+extern const uint8_t yolo26n_inference_espdl[] asm("_binary_yolo26n_640_espdl_start");
+
+// 测试图像
+extern const uint8_t img_start[] asm("_binary_12995_jpg_start");
+extern const uint8_t img_end[] asm("_binary_12995_jpg_end");
 
 // #define LCD_TEST // 启用LCD测试
 #define YOLO_TEST // 启用YOLO测试
