@@ -29,10 +29,13 @@ Image::ImageAuto resize(Image::ImageAuto img,
                         bool keep_ratio,
                         uint32_t background)
 {
-    if (height <= 0 || width <= 0)
-        return img;
+    if (img.width() < width || img.height() < height) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Target size is bigger than the size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+    }
 
-    if (img.width() == width && img.height() == height)
+    if (img.width() == width && img.height() == height) [[unlikely]]
         return img;
 
     Image::ImageAuto resized_img(width, height);
@@ -75,7 +78,27 @@ Image::ImageAuto resize(Image::ImageAuto img,
                         std::array<int, 4> border,
                         uint32_t background)
 {
-    if (img.width() == width || img.height() == height)
+    if (img.width() < width || img.height() < height) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Target size is bigger than the size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+    }
+    if (border[0] + border[1] >= width) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Horizontal border is longer than the width, expected <{} but received {}+{}.", width, border[0], border[1]);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        assert(false);
+        return img;
+    }
+    if (border[2] + border[3] >= height) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Vertical border is longer than the height, expected <{} but received {}+{}.", height, border[2], border[3]);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        assert(false);
+        return img;
+    }
+
+    if (img.width() == width || img.height() == height) [[unlikely]]
         return img;
 
     Image::ImageAuto resized_img(width, height);
@@ -99,15 +122,55 @@ Image::ImageAuto resize(Image::ImageAuto img,
 Image::ImageAuto crop(Image::ImageAuto img,
                       std::array<int, 4> crop_area)
 {
-    uint16_t width = img.width();
-    uint16_t height = img.height();
+    int left = crop_area[0];
+    int top = crop_area[1];
+    int right = crop_area[2];
+    int bottom = crop_area[3];
 
-    uint16_t left = crop_area[0];
-    uint16_t top = crop_area[1];
-    uint16_t right = crop_area[2];
-    uint16_t bottom = crop_area[3];
+    if (left >= right) [[unlikely]]
+    {
+        std::string error_msg = std::format("Crop area is invalid, expected left<right but received left={} right={}.", left, right);
+        ESP_LOGE(TAG, "%s", error_msg.c_str());
+        assert(false);
+        return img;
+    }
+    if (top >= bottom) [[unlikely]]
+    {
+        std::string error_msg = std::format("Crop area is invalid, expected top<bottom but received top={} bottom={}.", top, bottom);
+        ESP_LOGE(TAG, "%s", error_msg.c_str());
+        assert(false);
+        return img;
+    }
+    if (left < 0) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Crop area is invalid, expected left>=0 but received left={}.", left);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        left = 0;
+        ESP_LOGW(TAG, "left is set to 0.");
+    }
+    if (right < 0) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Crop area is invalid, received left={}<0.", right);
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        right = 0;
+        ESP_LOGW(TAG, "left is set to 0.");
+    }
+    if (right > img.width()) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Crop area is invalid, expected right<=image width but received right={} width={}.", right, img.width());
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        right = img.width();
+        ESP_LOGW(TAG, "right is set to image width.");
+    }
+    if (bottom > img.height()) [[unlikely]]
+    {
+        std::string warning_msg = std::format("Crop area is invalid, expected bottom<=image height but received bottom={} height={}.", bottom, img.height());
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
+        bottom = img.height();
+        ESP_LOGW(TAG, "bottom is set to image height.");
+    }
 
-    if (left == 0 && top == 0 && right == width && bottom == height)
+    if (left == 0 && top == 0 && right == img.width() && bottom == img.height()) [[unlikely]]
         return img;
 
     Image::ImageAuto cropped_img(right - left, bottom - top);
@@ -127,6 +190,19 @@ std::vector<dl::detect::result_t> yolo_inference(dl::Model *model,
                                                  Image::ImageAuto &img,
                                                  YOLO26 &processor)
 {
+    if (model == nullptr) [[unlikely]]
+    {
+        ESP_LOGW(TAG, "Model is not initialized.");
+        assert(false);
+        return {};
+    }
+    if (img.data_const() == nullptr) [[unlikely]]
+    {
+        ESP_LOGW(TAG, "Image is not initialized.");
+        assert(false);
+        return {};
+    }
+
     esp_task_wdt_add(NULL);
     auto inputs = model->get_inputs();
     dl::TensorBase *input_tensor = inputs.begin()->second;
@@ -134,13 +210,13 @@ std::vector<dl::detect::result_t> yolo_inference(dl::Model *model,
     int model_h = input_tensor->shape[1];
     int model_w = input_tensor->shape[2];
 
-    if (img.height() != model_h)
+    if (img.height() != model_h) [[unlikely]]
     {
         const std::string warning_msg = std::format("The height is not aligned with the model, expected {} but received {}.", model_h, img.height());
         ESP_LOGW(TAG, "%s", warning_msg.data());
         ESP_LOGW(TAG, "Automatically resizing the image. If this is what you want, ignore this warning.");
     }
-    if (img.width() != model_w)
+    if (img.width() != model_w) [[unlikely]]
     {
         const std::string warning_msg = std::format("The width is not aligned with the model, expected {} but received {}.", model_w, img.width());
         ESP_LOGW(TAG, "%s", warning_msg.data());

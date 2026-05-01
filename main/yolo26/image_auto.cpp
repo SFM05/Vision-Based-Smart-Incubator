@@ -3,6 +3,8 @@
 #include "dl_image.hpp"
 #include "image_auto.hpp"
 
+static const char *TAG = "image_auto";
+
 namespace Image
 {
     constexpr auto deleter = [](uint8_t *p)
@@ -14,6 +16,12 @@ namespace Image
     {
         size_t size = width * height * dl::image::get_pix_byte_size(pix_type);
         uint8_t *data = static_cast<uint8_t *>(heap_caps_malloc(size, MALLOC_CAP_DEFAULT));
+        if (data == nullptr) [[unlikely]]
+        {
+            ESP_LOGW(TAG, "Failed to allocate memory.");
+            assert(false);
+            abort();
+        }
         m_data = std::shared_ptr<uint8_t[]>(data, deleter);
     }
 
@@ -24,6 +32,11 @@ namespace Image
 
     void ImageAuto::datach()
     {
+        if (m_data == nullptr) [[unlikely]]
+        {
+            ESP_LOGW(TAG, "Image is empty.");
+            return;
+        }
         if (!m_data.unique())
         {
             size_t size = m_width * m_height * dl::image::get_pix_byte_size(m_pix_type);
@@ -33,17 +46,30 @@ namespace Image
         }
     }
 
-    uint16_t ImageAuto::width()
+    uint16_t ImageAuto::width() const
     {
         return m_width;
     }
-    uint16_t ImageAuto::height()
+    uint16_t ImageAuto::height() const
     {
         return m_height;
     }
-    dl::image::pix_type_t ImageAuto::pix_type()
+    dl::image::pix_type_t ImageAuto::pix_type() const
     {
         return m_pix_type;
+    }
+    std::shared_ptr<const uint8_t[]> ImageAuto::data_const() const
+    {
+        return m_data;
+    }
+    std::shared_ptr<uint8_t[]> ImageAuto::data()
+    {
+        datach();
+        return m_data;
+    }
+    size_t ImageAuto::size() const
+    {
+        return m_width * m_height * dl::image::get_pix_byte_size(m_pix_type);
     }
 
     const dl::image::img_t ImageAuto::to_img_t_const()
@@ -52,7 +78,8 @@ namespace Image
             .data = m_data.get(),
             .width = m_width,
             .height = m_height,
-            .pix_type = m_pix_type};
+            .pix_type = m_pix_type
+        };
         return img;
     }
 
@@ -63,12 +90,15 @@ namespace Image
             .data = m_data.get(),
             .width = m_width,
             .height = m_height,
-            .pix_type = m_pix_type};
+            .pix_type = m_pix_type
+        };
         return img;
     }
 
     void ImageAuto::reset()
     {
         m_data.reset();
+        m_width=m_height=0;
+        m_data=nullptr;
     }
 }

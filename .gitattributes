@@ -1,0 +1,6 @@
+# 所有文本文件自动统一换行符
+* text=auto
+
+# 明确指定某些文件保持原样
+*.bat text eol=crlf
+*.sh text eol=lf
