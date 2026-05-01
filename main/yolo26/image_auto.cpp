@@ -19,7 +19,6 @@ namespace Image
         if (data == nullptr) [[unlikely]]
         {
             ESP_LOGW(TAG, "Failed to allocate memory.");
-            assert(false);
             abort();
         }
         m_data = std::shared_ptr<uint8_t[]>(data, deleter);
@@ -30,7 +29,7 @@ namespace Image
         m_data = std::shared_ptr<uint8_t[]>(static_cast<uint8_t *>(img.data), deleter);
     }
 
-    void ImageAuto::datach()
+    void ImageAuto::detach()
     {
         if (m_data == nullptr) [[unlikely]]
         {
@@ -64,7 +63,7 @@ namespace Image
     }
     std::shared_ptr<uint8_t[]> ImageAuto::data()
     {
-        datach();
+        detach();
         return m_data;
     }
     size_t ImageAuto::size() const
@@ -85,7 +84,7 @@ namespace Image
 
     dl::image::img_t ImageAuto::to_img_t()
     {
-        datach();
+        detach();
         dl::image::img_t img{
             .data = m_data.get(),
             .width = m_width,
@@ -99,6 +98,5 @@ namespace Image
     {
         m_data.reset();
         m_width=m_height=0;
-        m_data=nullptr;
     }
 }

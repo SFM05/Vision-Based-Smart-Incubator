@@ -12,7 +12,7 @@ namespace Image
         dl::image::pix_type_t m_pix_type;
         std::shared_ptr<uint8_t[]> m_data;
 
-        void datach();
+        void detach();
 
     public:
         /**

@@ -2,10 +2,6 @@
 
 #include <vector>
 #include "dl_model_base.hpp"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_task_wdt.h"
-#include "esp_log.h"
 #include "dl_image.hpp"
 #include "yolo26.hpp"
 #include "image_auto.hpp"

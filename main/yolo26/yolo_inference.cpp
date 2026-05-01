@@ -98,7 +98,7 @@ Image::ImageAuto resize(Image::ImageAuto img,
         return img;
     }
 
-    if (img.width() == width || img.height() == height) [[unlikely]]
+    if (img.width() == width && img.height() == height) [[unlikely]]
         return img;
 
     Image::ImageAuto resized_img(width, height);
@@ -213,13 +213,13 @@ std::vector<dl::detect::result_t> yolo_inference(dl::Model *model,
     if (img.height() != model_h) [[unlikely]]
     {
         const std::string warning_msg = std::format("The height is not aligned with the model, expected {} but received {}.", model_h, img.height());
-        ESP_LOGW(TAG, "%s", warning_msg.data());
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
         ESP_LOGW(TAG, "Automatically resizing the image. If this is what you want, ignore this warning.");
     }
     if (img.width() != model_w) [[unlikely]]
     {
         const std::string warning_msg = std::format("The width is not aligned with the model, expected {} but received {}.", model_w, img.width());
-        ESP_LOGW(TAG, "%s", warning_msg.data());
+        ESP_LOGW(TAG, "%s", warning_msg.c_str());
         ESP_LOGW(TAG, "Automatically resizing the image. If this is what you want, ignore this warning.");
     }
 
