@@ -23,6 +23,7 @@ build/
 *.a
 *.out
 *.exe # For any host-side utilities compiled on Windows
+/partition_table
 
 # ESP-IDF specific build outputs
 *.bin
@@ -31,6 +32,7 @@ build/
 flasher_args.json # Generated in build directory
 sdkconfig.old
 sdkconfig
+dependencies.lock
 
 # ESP-IDF dependencies
 # For older versions or manual component management
@@ -72,6 +74,9 @@ compile_commands.json
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# OpenCode agent instructions (generated, repo-specific)
+AGENTS.md
 
 # User-specific configuration files
 *.user

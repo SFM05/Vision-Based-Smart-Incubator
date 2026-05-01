@@ -2,136 +2,79 @@
 
 #include <vector>
 #include "dl_model_base.hpp"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_task_wdt.h"
-#include "esp_log.h"
+#include "dl_image.hpp"
 #include "yolo26.hpp"
-
-// static const char* TAG="YOLO_INFERENCE";
+#include "image_auto.hpp"
 
 /**
  * @brief JPEG解码
- * 
+ *
  * @param jpg_data 图片的起始位置
  * @param jpg_len 图片的大小（end-begin）
- * @return dl::image::img_t，解码后的图片
+ * @return Image::ImageAuto 解码后的图片
+ * 
+ * @see Image::ImageAuto
  */
-dl::image::img_t decode_jpeg(const uint8_t *jpg_data, size_t jpg_len)
-{
-    dl::image::jpeg_img_t jpeg_img = {
-        .data = (void *)jpg_data,
-        .data_len = jpg_len};
-    return dl::image::sw_decode_jpeg(jpeg_img, dl::image::DL_IMAGE_PIX_TYPE_RGB888);
-}
+Image::ImageAuto decode_jpeg(const uint8_t *jpg_data, size_t jpg_len);
 
 /**
- * @brief 对图片进行缩放
- * 
+ * @brief 对图片直接进行缩放
+ *
  * @param img 解码后的图片
  * @param height 目标图片的高
  * @param width 目标图片的宽
- * @return dl::image::img_t，缩放后的图片
+ * @param keep_ratio 是否保持比例一致
+ * @param background 填充的颜色，默认为灰色 (114, 114, 114)，该参数只会在keep_ratio为true时生效
+ * @return Image::ImageAuto 缩放后的图片
+ * 
+ * @see Image::ImageAuto
  */
-dl::image::img_t resize(const dl::image::img_t &img,
-                        int height,
-                        int width)
-{
-    if (height <= 0 || width <= 0)
-        return img;
+Image::ImageAuto resize(Image::ImageAuto img,
+                        uint16_t width,
+                        uint16_t height,
+                        bool keep_ratio,
+                        uint32_t background = 0x00727272);
 
-    if (img.width != width || img.height != height)
-    {
-        dl::image::img_t resized_img;
-        resized_img.width = width;
-        resized_img.height = height;
-        resized_img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888;
-        resized_img.data = heap_caps_malloc(dl::image::get_img_byte_size(resized_img), MALLOC_CAP_DEFAULT);
-
-        dl::image::ImageTransformer transformer;
-        transformer.set_src_img(img);
-        transformer.set_dst_img(resized_img);
-        transformer.transform();
-
-        return resized_img;
-    }
-
-    return img;
-}
+/**
+ * @brief 对图片进行缩放并填充边缘
+ *
+ * @param img 解码后的图片
+ * @param height 目标图片的高
+ * @param width 目标图片的宽
+ * @param border 四周填充的宽度，遵循[top, bottom, left, right]的顺序
+ * @param background 填充的颜色，默认为灰色 (114, 114, 114)
+ * @return Image::ImageAuto 缩放后的图片
+ * 
+ * @see Image::ImageAuto
+ */
+Image::ImageAuto resize(Image::ImageAuto img,
+                        uint16_t width,
+                        uint16_t height,
+                        std::array<int, 4> border,
+                        uint32_t background = 0x00727272);
 
 /**
  * @brief 对图片进行裁剪
- * 
+ *
  * @param img 解码后的图片
- * @param left 左边界
- * @param top 上边界
- * @param right 右边界
- * @param bottom 下边界
- * @return dl::image::img_t，裁剪后的图片
+ * @param crop_area 被裁剪出来的区域，遵循[left, top, right, bottom]的顺序
+ * @return Image::ImageAuto，裁剪后的图片
+ * 
+ * @see Image::ImageAuto
  */
-
-dl::image::img_t crop(const dl::image::img_t img,
-                      int left,
-                      int top,
-                      int right,
-                      int bottom)
-{
-    int width = img.width;
-    int height = img.height;
-
-    if (left!=0 || top!=0 || right!=width || bottom!= height){
-        dl::image::img_t cropped_img;
-        cropped_img.width=right-left;
-        cropped_img.height=bottom-top;
-        cropped_img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888;
-        cropped_img.data = heap_caps_malloc(dl::image::get_img_byte_size(cropped_img), MALLOC_CAP_DEFAULT);
-
-        dl::image::ImageTransformer transformer;
-        std::vector<int> crop_area = {left, top, right, bottom};
-        transformer.set_src_img(img);
-        transformer.set_dst_img(cropped_img);
-        transformer.set_src_img_crop_area(crop_area);
-        transformer.transform();
-        return cropped_img;
-    }
-    
-    return img;
-}
+Image::ImageAuto crop(Image::ImageAuto img,
+                      std::array<int,4> crop_area);
 
 /**
  * @brief 进行yolo26推理
- * 
+ *
  * @param model yolo26模型
  * @param img 解码后的图片
  * @param processor yolo26处理器
+ * @return std::vector<dl::detect::result_t> 推理结果
+ * 
+ * @see dl::detect::result_t
  */
-
-std::vector<Detection> yolo_inference(dl::Model *model,
-                                      dl::image::img_t img,
-                                      Yolo26Processor &processor)
-{
-    auto inputs=model->get_inputs();
-    dl::TensorBase* input_tensor = inputs.begin()->second;
-        
-    int model_h = input_tensor->shape[1];
-    int model_w = input_tensor->shape[2];
-
-    if (img.height != model_h)
-        ESP_LOGE("YOLO_INFERENCE", "The height is not aligned with the model");
-    if (img.width != model_w)
-        ESP_LOGE("YOLO_INFERENCE", "The width is not aligned with the model");
-
-    // 预处理
-    processor.preprocess(img, model->get_inputs());
-    // esp_task_wdt_reset();
-
-    // 推理
-    model->run();
-    // esp_task_wdt_reset();
-
-    // 后处理
-    auto results = processor.postprocess(model->get_outputs());
-    // esp_task_wdt_reset();
-
-    return results;
-}
+std::vector<dl::detect::result_t> yolo_inference(dl::Model *model,
+                                                 Image::ImageAuto &img,
+                                                 YOLO26 &processor);
