@@ -1,13 +1,17 @@
 set(srcs "main.cpp"
          "camera/camera_driver.c"
-         "lcd/lcd_driver.c"
+         # "lcd/lcd_driver.c"
+         "lcd/st7796_driver.cpp"
          "pipeline/video_pipeline.c"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp")
 set(requires esp_lcd
              driver
              esp_video
-             esp_lcd_ek79007
+            #  esp_lcd_ek79007
+             esp_driver_spi
+             unity
+             esp_lcd_st7796
              freertos
              esp-dl
              esp_partition

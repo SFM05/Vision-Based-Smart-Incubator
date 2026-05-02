@@ -125,6 +125,26 @@ dependencies:
     targets:
     - esp32p4
     version: 2.0.2
+  espressif/esp_lcd_st7796:
+    component_hash: 528a864b7dd447aa78472680a1f3e294c8045b4e64d479d176c3c66aa6f7edee
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32c3
+    version: 1.4.0
   espressif/esp_new_jpeg:
     component_hash: e6af208a875abd0ecfc0213d3751a11b504b463ebde6930f24096047925fa5c1
     dependencies: []
@@ -197,10 +217,11 @@ dependencies:
 direct_dependencies:
 - espressif/esp-dl
 - espressif/esp_lcd_ek79007
+- espressif/esp_lcd_st7796
 - espressif/esp_sccb_intf
 - espressif/esp_video
 - espressif/yolo26
 - idf
-manifest_hash: 8e4652c95c08dceb5b1b5f997b248f6ff36c434d60eb184155fef15871abbe7d
+manifest_hash: 81ae9d4efe06e933dc043bc2a08e9666ff31af9c6159855ef3bc7cc0d2e06d74
 target: esp32p4
 version: 2.0.0

@@ -1,16 +1,3 @@
-/**
- * @file main.cpp
- * @brief Camera LCD Demo - 应用程序入口
- *
- * 系统架构（模块化解耦）:
- *   LCD (EK79007) <---> Video Pipeline (V4L2) <---> Camera (OV5647)
- *
- * 硬件平台: ESP32-P4
- * 摄像头:    OV5647 (MIPI CSI, 1920x1080 RAW10 -> ISP RGB565, 30fps)
- * 显示屏:    EK79007 (MIPI DSI, 1024x600 RGB565)
- * 框架:      esp_video V4L2 + FreeRTOS
- */
-
 #include <iostream>
 #include <cstring>
 #include <utility>
@@ -19,128 +6,156 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_err.h"
+
+#include "driver/gpio.h"
+
 #include "esp_partition.h"
 #include "spi_flash_mmap.h"
 
-#include "lcd_driver.h"
+#include "esp_heap_caps.h"
+#include "esp_heap_task_info.h"
+
+// #include "lcd_driver.h"
+#include "st7796_driver.hpp"
 #include "camera_driver.h"
 #include "video_pipeline.h"
 
 #include "yolo_inference.hpp"
 #include "yolo26.hpp"
-#include "esp_heap_caps.h"
-#include "esp_heap_task_info.h"
 
 static const char *TAG = "main";
 
-/* ---------- 系统参数 ---------- */
+// LCD参数
+constexpr uint16_t HORIZONRAL_RES = 480;
+constexpr uint16_t VERTICAL_RES = 320;
 
-#define DISPLAY_WIDTH 1024  ///< LCD 显示宽度
-#define DISPLAY_HEIGHT 600  ///< LCD 显示高度
-#define NUM_FRAME_BUFFERS 2 ///< V4L2 帧缓冲数量
+constexpr int GPIO_CS = GPIO_NUM_22;
+constexpr int GPIO_RST = GPIO_NUM_23;
+constexpr int GPIO_RS = GPIO_NUM_26; // LCD_RS (D/C)
+constexpr int GPIO_MOSI = GPIO_NUM_27;
+constexpr int GPIO_CLK = GPIO_NUM_32;
 
-// #define LCD_TEST // 启用LCD测试
-#define YOLO_TEST // 启用YOLO测试
+constexpr unsigned int CLK_FREQUENCY = 80e6;
 
-// YOLO模型文件
-extern const uint8_t yolo26n_inference_espdl[] asm("_binary_yolo26n_640_espdl_start");
-
-// 测试图像
-extern const uint8_t img_start[] asm("_binary_12995_jpg_start");
-extern const uint8_t img_end[] asm("_binary_12995_jpg_end");
-
-// #define LCD_TEST // 启用LCD测试
-#define YOLO_TEST // 启用YOLO测试
+#define LCD_TEST // 启用LCD测试
+// #define YOLO_TEST // 启用YOLO测试
 
 extern "C" void app_main(void)
 {
 #ifdef LCD_TEST
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  Camera LCD Demo - Modular Architecture");
-    ESP_LOGI(TAG, "  Target: ESP32-P4");
-    ESP_LOGI(TAG, "  Display: EK79007 %dx%d (MIPI DSI)", DISPLAY_WIDTH, DISPLAY_HEIGHT);
-    ESP_LOGI(TAG, "  Camera: OV5647 (MIPI CSI, 1920x1080)");
-    ESP_LOGI(TAG, "  Framework: esp_video (V4L2) + FreeRTOS");
-    ESP_LOGI(TAG, "========================================");
+    LCD::ST7796 panel_driver{SPI2_HOST, HORIZONRAL_RES, VERTICAL_RES};
 
-    esp_err_t ret;
+    panel_driver.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
+    panel_driver.set_io_cfg(GPIO_CS, GPIO_RS,CLK_FREQUENCY);
+    panel_driver.set_panel_cfg(GPIO_RST);
 
-    /* ---- 模块 1/3: 初始化 LCD 显示屏 ---- */
-    esp_lcd_panel_handle_t panel_handle = NULL;
-    ret = lcd_ek79007_init(&panel_handle);
-    if (ret != ESP_OK)
+    panel_driver.spi_init();
+    panel_driver.io_init();
+    panel_driver.panel_init();
+
+        // 测试：清屏为红色
+    uint16_t *buffer = (uint16_t *)heap_caps_malloc(HORIZONRAL_RES * 10 * sizeof(uint16_t), MALLOC_CAP_DMA);
+
+    // 主循环可以添加其他显示逻辑
+    while (1)
     {
-        ESP_LOGE(TAG, "[1/3] LCD initialization failed: %s", esp_err_to_name(ret));
-        return;
-    }
-    ESP_LOGI(TAG, "[1/3] LCD module initialized");
+        for (int i = 0; i < VERTICAL_RES * 10; i++)
+        {
+            buffer[i] = 0xF800; // 红色
+        }
+        for (int y = 0; y < HORIZONRAL_RES; y += 10)
+        {
+            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
 
-    /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
-    camera_driver_ctx_t camera_ctx;
-    memset(&camera_ctx, 0, sizeof(camera_ctx));
+        for (int i = 0; i < VERTICAL_RES * 10; i++)
+        {
+            buffer[i] = 0x07E0; // 绿色
+        }
+        for (int y = 0; y < HORIZONRAL_RES; y += 10)
+        {
+            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
 
-    ret = camera_ov5647_init(&camera_ctx);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "[2/3] Camera initialization failed: %s", esp_err_to_name(ret));
-        lcd_ek79007_deinit(panel_handle);
-        return;
-    }
-    ESP_LOGI(TAG, "[2/3] Camera module initialized");
-
-    /*
-     * ---- 模块 3/3: 初始化视频管道 ----
-     *
-     * @note pipeline_ctx 必须声明为 static:
-     *       app_main() 返回后，preview_task 仍在运行并访问此结构体。
-     *       如果使用栈变量，返回后栈帧被复用会导致数据损坏。
-     */
-    static video_pipeline_ctx_t pipeline_ctx;
-    memset(&pipeline_ctx, 0, sizeof(pipeline_ctx));
-
-    video_pipeline_config_t pipeline_config = {
-        .width = DISPLAY_WIDTH,
-        .height = DISPLAY_HEIGHT,
-        .num_buffers = NUM_FRAME_BUFFERS,
-    };
-
-    ret = video_pipeline_init(&pipeline_config, panel_handle, &pipeline_ctx);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "[3/3] Video pipeline init failed: %s", esp_err_to_name(ret));
-        video_pipeline_deinit(&pipeline_ctx); /* 安全: 内部检查 NULL */
-        camera_ov5647_deinit(&camera_ctx);
-        lcd_ek79007_deinit(panel_handle);
-        return;
-    }
-    ESP_LOGI(TAG, "[3/3] Video pipeline initialized");
-
-    /* ---- 启动视频流采集 ---- */
-    ret = video_pipeline_start(&pipeline_ctx);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to start video stream: %s", esp_err_to_name(ret));
-        video_pipeline_deinit(&pipeline_ctx);
-        camera_ov5647_deinit(&camera_ctx);
-        lcd_ek79007_deinit(panel_handle);
-        return;
+        for (int i = 0; i < VERTICAL_RES * 10; i++)
+        {
+            buffer[i] = 0x001F; // 蓝色
+        }
+        for (int y = 0; y < HORIZONRAL_RES; y += 10)
+        {
+            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    ESP_LOGI(TAG, "All modules ready! Starting preview...");
+    // /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
+    // camera_driver_ctx_t camera_ctx;
+    // memset(&camera_ctx, 0, sizeof(camera_ctx));
 
-    /* ---- 创建预览任务 (Core 0, 高优先级) ---- */
-    xTaskCreatePinnedToCore(
-        video_preview_task, /* 任务入口函数 */
-        "preview_task",     /* 任务名称 */
-        8192,               /* 栈大小 (8KB, 足够缩放运算) */
-        &pipeline_ctx,      /* 参数: 管道上下文指针 */
-        10,                 /* 优先级 (高，保证实时性) */
-        NULL,               /* 任务句柄 (不需要外部控制) */
-        0                   /* 绑定到 Core 0 */
-    );
+    // ret = camera_ov5647_init(&camera_ctx);
+    // if (ret != ESP_OK)
+    // {
+    //     ESP_LOGE(TAG, "[2/3] Camera initialization failed: %s", esp_err_to_name(ret));
+    //     lcd_ek79007_deinit(panel_handle);
+    //     return;
+    // }
+    // ESP_LOGI(TAG, "[2/3] Camera module initialized");
 
-    ESP_LOGI(TAG, "System running - Real-time camera preview on Core 0!");
-    ESP_LOGI(TAG, "Pipeline: Camera -> V4L2 DQBUF -> Scale -> LCD DMA -> QBUF");
+    // /*
+    //  * ---- 模块 3/3: 初始化视频管道 ----
+    //  *
+    //  * @note pipeline_ctx 必须声明为 static:
+    //  *       app_main() 返回后，preview_task 仍在运行并访问此结构体。
+    //  *       如果使用栈变量，返回后栈帧被复用会导致数据损坏。
+    //  */
+    // static video_pipeline_ctx_t pipeline_ctx;
+    // memset(&pipeline_ctx, 0, sizeof(pipeline_ctx));
+
+    // video_pipeline_config_t pipeline_config = {
+    //     .width = DISPLAY_WIDTH,
+    //     .height = DISPLAY_HEIGHT,
+    //     .num_buffers = NUM_FRAME_BUFFERS,
+    // };
+
+    // ret = video_pipeline_init(&pipeline_config, panel_handle, &pipeline_ctx);
+    // if (ret != ESP_OK)
+    // {
+    //     ESP_LOGE(TAG, "[3/3] Video pipeline init failed: %s", esp_err_to_name(ret));
+    //     video_pipeline_deinit(&pipeline_ctx); /* 安全: 内部检查 NULL */
+    //     camera_ov5647_deinit(&camera_ctx);
+    //     lcd_ek79007_deinit(panel_handle);
+    //     return;
+    // }
+    // ESP_LOGI(TAG, "[3/3] Video pipeline initialized");
+
+    // /* ---- 启动视频流采集 ---- */
+    // ret = video_pipeline_start(&pipeline_ctx);
+    // if (ret != ESP_OK)
+    // {
+    //     ESP_LOGE(TAG, "Failed to start video stream: %s", esp_err_to_name(ret));
+    //     video_pipeline_deinit(&pipeline_ctx);
+    //     camera_ov5647_deinit(&camera_ctx);
+    //     lcd_ek79007_deinit(panel_handle);
+    //     return;
+    // }
+
+    // ESP_LOGI(TAG, "All modules ready! Starting preview...");
+
+    // /* ---- 创建预览任务 (Core 0, 高优先级) ---- */
+    // xTaskCreatePinnedToCore(
+    //     video_preview_task, /* 任务入口函数 */
+    //     "preview_task",     /* 任务名称 */
+    //     8192,               /* 栈大小 (8KB, 足够缩放运算) */
+    //     &pipeline_ctx,      /* 参数: 管道上下文指针 */
+    //     10,                 /* 优先级 (高，保证实时性) */
+    //     NULL,               /* 任务句柄 (不需要外部控制) */
+    //     0                   /* 绑定到 Core 0 */
+    // );
+
+    // ESP_LOGI(TAG, "System running - Real-time camera preview on Core 0!");
+    // ESP_LOGI(TAG, "Pipeline: Camera -> V4L2 DQBUF -> Scale -> LCD DMA -> QBUF");
 #endif
 
 #ifdef YOLO_TEST
