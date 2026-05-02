@@ -31,7 +31,7 @@ Image::ImageAuto resize(Image::ImageAuto img,
 {
     if (img.width() < width || img.height() < height) [[unlikely]]
     {
-        std::string warning_msg = std::format("Target size is bigger than the size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
+        std::string warning_msg = std::format("Target size is bigger than source size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
     }
 
@@ -80,7 +80,7 @@ Image::ImageAuto resize(Image::ImageAuto img,
 {
     if (img.width() < width || img.height() < height) [[unlikely]]
     {
-        std::string warning_msg = std::format("Target size is bigger than the size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
+        std::string warning_msg = std::format("Target size is bigger than source size, expected <{}x{} but received {}x{}.", img.width(), img.height(), width, height);
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
     }
     if (border[0] + border[1] >= width) [[unlikely]]
@@ -127,47 +127,49 @@ Image::ImageAuto crop(Image::ImageAuto img,
     int right = crop_area[2];
     int bottom = crop_area[3];
 
-    if (left >= right) [[unlikely]]
-    {
-        std::string error_msg = std::format("Crop area is invalid, expected left<right but received left={} right={}.", left, right);
-        ESP_LOGE(TAG, "%s", error_msg.c_str());
-        assert(false);
-        return img;
-    }
-    if (top >= bottom) [[unlikely]]
-    {
-        std::string error_msg = std::format("Crop area is invalid, expected top<bottom but received top={} bottom={}.", top, bottom);
-        ESP_LOGE(TAG, "%s", error_msg.c_str());
-        assert(false);
-        return img;
-    }
     if (left < 0) [[unlikely]]
     {
-        std::string warning_msg = std::format("Crop area is invalid, expected left>=0 but received left={}.", left);
+        std::string warning_msg = std::format("Expected left<0 but received left={}.", left);
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
         left = 0;
-        ESP_LOGW(TAG, "left is set to 0.");
+        ESP_LOGW(TAG, "Left is set to 0.");
     }
     if (right < 0) [[unlikely]]
     {
-        std::string warning_msg = std::format("Crop area is invalid, received left={}<0.", right);
+        std::string warning_msg = std::format("Expected right<0, received right={}.", right);
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
         right = 0;
-        ESP_LOGW(TAG, "left is set to 0.");
+        ESP_LOGW(TAG, "Right is set to 0.");
     }
     if (right > img.width()) [[unlikely]]
     {
-        std::string warning_msg = std::format("Crop area is invalid, expected right<=image width but received right={} width={}.", right, img.width());
+        std::string warning_msg = std::format("Expected right>width but received right={} width={}.", right, img.width());
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
         right = img.width();
-        ESP_LOGW(TAG, "right is set to image width.");
+        ESP_LOGW(TAG, "Right is set to image width.");
     }
     if (bottom > img.height()) [[unlikely]]
     {
-        std::string warning_msg = std::format("Crop area is invalid, expected bottom<=image height but received bottom={} height={}.", bottom, img.height());
+        std::string warning_msg = std::format("Expected bottom>height but received bottom={} height={}.", bottom, img.height());
         ESP_LOGW(TAG, "%s", warning_msg.c_str());
         bottom = img.height();
-        ESP_LOGW(TAG, "bottom is set to image height.");
+        ESP_LOGW(TAG, "Bottom is set to image height.");
+    }
+    if (left >= right) [[unlikely]]
+    {
+        std::string error_msg = std::format("Expectec left>=right but received left={} right={}.", left, right);
+        ESP_LOGE(TAG, "%s", error_msg.c_str());
+        assert(false);
+        return img;
+        ESP_LOGW(TAG,"Return original image.");
+    }
+    if (top >= bottom) [[unlikely]]
+    {
+        std::string error_msg = std::format("Expected top>=bottom but received top={} bottom={}.", top, bottom);
+        ESP_LOGE(TAG, "%s", error_msg.c_str());
+        assert(false);
+        return img;
+        ESP_LOGW(TAG,"Return original image.");
     }
 
     if (left == 0 && top == 0 && right == img.width() && bottom == img.height()) [[unlikely]]
