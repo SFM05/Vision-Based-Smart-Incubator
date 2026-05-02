@@ -214,7 +214,7 @@ extern "C" void app_main(void)
     auto results = yolo_inference(model, img_resized, processor);
     vTaskDelay(100);
 
-    ESP_LOGI(TAG, "Total Colonies: %u", (unsigned)results.size());
+    ESP_LOGI(TAG, "%s", std::format("Detected {} colonies", results.size()).c_str());
 
     delete model;
 
