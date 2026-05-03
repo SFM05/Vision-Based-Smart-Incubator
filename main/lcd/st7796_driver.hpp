@@ -1,7 +1,6 @@
 #pragma once
 
 #include <inttypes.h>
-#include "esp_types.h"
 
 #include "driver/spi_master.h"
 #include "esp_lcd_panel_ops.h"
@@ -25,14 +24,14 @@ namespace LCD
     public:
         ST7796(spi_host_device_t spi_host, uint16_t width, uint16_t height);
 
-        void set_spi_cfg(int mosi_io_num,
-                         int clk_io_num,
-                         int miso_io_num = -1,
+        void set_spi_cfg(gpio_num_t mosi_io_num,
+                         gpio_num_t clk_io_num,
+                         gpio_num_t miso_io_num = GPIO_NUM_NC,
                          int max_transfer_size = 0);
-        void set_io_cfg(int cs_gpio_num,
-                        int dc_gpio_num,
+        void set_io_cfg(gpio_num_t cs_gpio_num,
+                        gpio_num_t dc_gpio_num,
                         unsigned int clk_frequency);
-        void set_panel_cfg(int reset_gpio_num);
+        void set_panel_cfg(gpio_num_t reset_gpio_num);
 
         esp_err_t spi_init();
         esp_err_t io_init();

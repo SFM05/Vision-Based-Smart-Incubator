@@ -17,6 +17,7 @@
 
 // #include "lcd_driver.h"
 #include "st7796_driver.hpp"
+#include "ft6336_driver.hpp"
 #include "camera_driver.h"
 #include "video_pipeline.h"
 
@@ -29,67 +30,85 @@ static const char *TAG = "main";
 constexpr uint16_t HORIZONRAL_RES = 480;
 constexpr uint16_t VERTICAL_RES = 320;
 
-constexpr int GPIO_CS = GPIO_NUM_22;
-constexpr int GPIO_RST = GPIO_NUM_23;
-constexpr int GPIO_RS = GPIO_NUM_26; // LCD_RS (D/C)
-constexpr int GPIO_MOSI = GPIO_NUM_27;
-constexpr int GPIO_CLK = GPIO_NUM_32;
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_22;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_23;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_26; // LCD_RS (D/C)
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_27;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_32;
 
-constexpr unsigned int CLK_FREQUENCY = 80e6;
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_50;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_49;
+constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
+constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 
-#define LCD_TEST // 启用LCD测试
+constexpr unsigned int CLK_FREQUENCY = 40e6; // 最大80MHz
+
+#define TOUCH_LCD_TEST
+// #define CAMERA_TEST
 // #define YOLO_TEST // 启用YOLO测试
+
+using touch_task_param_t = std::pair<esp_lcd_panel_handle_t, esp_lcd_touch_handle_t>;
+
+static SemaphoreHandle_t touch_sem; // 触摸二值信号量
+
+// 触摸中断回调 — 在 ISR 中运行，必须 IRAM_ATTR，做最少的事
+static void IRAM_ATTR my_touch_isr_cb(esp_lcd_touch_handle_t touch_handle)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(touch_sem, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken)
+    {
+        portYIELD_FROM_ISR();
+    }
+}
+
+// 触摸处理任务
+static void touch_task(void *argv)
+{
+    touch_task_param_t *args = static_cast<touch_task_param_t *>(argv);
+    auto panel_handle = args->first;
+    auto touch_handle = args->second;
+
+    uint16_t *buffer_white = (uint16_t *)heap_caps_malloc(50 * 50 * sizeof(uint16_t), MALLOC_CAP_DMA);
+    uint16_t *buffer_black = (uint16_t *)heap_caps_malloc(50 * 50 * sizeof(uint16_t), MALLOC_CAP_DMA);
+    memset(buffer_white, 0xFFFF, 50 * 50 * sizeof(uint16_t));
+    memset(buffer_black, 0, 50 * 50 * sizeof(uint16_t));
+
+    uint16_t x = HORIZONRAL_RES / 2;
+    uint16_t y = VERTICAL_RES / 2;
+    uint16_t strength;
+    while (true)
+    {
+        xSemaphoreTake(touch_sem, portMAX_DELAY); // 等中断
+        esp_lcd_touch_read_data(touch_handle);    // I2C 读取触摸数据
+
+        esp_lcd_touch_point_data_t points[1] = {0};
+        uint8_t touch_cnt = 0;
+        esp_lcd_touch_get_data(touch_handle, points, &touch_cnt, 1);
+        if (touch_cnt > 0)
+        {
+            // 先清空原来的区域
+            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_white);
+
+            x = points[0].x;
+            y = points[0].y;
+            strength = points[0].strength;
+            std::string msg = std::format("Touch: x={}, y={}, strength={}", x, y, strength);
+            ESP_LOGI(TAG, "%s", msg.c_str());
+            // 绘制新区域
+            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_black);
+        }
+        else
+        {
+            ESP_LOGI(TAG, "No touch");
+            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_white);
+        }
+    }
+}
 
 extern "C" void app_main(void)
 {
-#ifdef LCD_TEST
-    LCD::ST7796 panel_driver{SPI2_HOST, HORIZONRAL_RES, VERTICAL_RES};
-
-    panel_driver.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
-    panel_driver.set_io_cfg(GPIO_CS, GPIO_RS,CLK_FREQUENCY);
-    panel_driver.set_panel_cfg(GPIO_RST);
-
-    panel_driver.spi_init();
-    panel_driver.io_init();
-    panel_driver.panel_init();
-
-        // 测试：清屏为红色
-    uint16_t *buffer = (uint16_t *)heap_caps_malloc(HORIZONRAL_RES * 10 * sizeof(uint16_t), MALLOC_CAP_DMA);
-
-    // 主循环可以添加其他显示逻辑
-    while (1)
-    {
-        for (int i = 0; i < VERTICAL_RES * 10; i++)
-        {
-            buffer[i] = 0xF800; // 红色
-        }
-        for (int y = 0; y < HORIZONRAL_RES; y += 10)
-        {
-            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
-        for (int i = 0; i < VERTICAL_RES * 10; i++)
-        {
-            buffer[i] = 0x07E0; // 绿色
-        }
-        for (int y = 0; y < HORIZONRAL_RES; y += 10)
-        {
-            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
-        for (int i = 0; i < VERTICAL_RES * 10; i++)
-        {
-            buffer[i] = 0x001F; // 蓝色
-        }
-        for (int y = 0; y < HORIZONRAL_RES; y += 10)
-        {
-            esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, y, VERTICAL_RES, y + 10, buffer);
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-
+#ifdef CAMERA_TEST
     // /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
     // camera_driver_ctx_t camera_ctx;
     // memset(&camera_ctx, 0, sizeof(camera_ctx));
@@ -156,6 +175,82 @@ extern "C" void app_main(void)
 
     // ESP_LOGI(TAG, "System running - Real-time camera preview on Core 0!");
     // ESP_LOGI(TAG, "Pipeline: Camera -> V4L2 DQBUF -> Scale -> LCD DMA -> QBUF");
+#endif
+
+#ifdef TOUCH_LCD_TEST
+    // 初始化屏幕
+    LCD::ST7796 panel_driver{SPI2_HOST, HORIZONRAL_RES, VERTICAL_RES};
+
+    panel_driver.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
+    panel_driver.set_io_cfg(GPIO_CS, GPIO_RS, CLK_FREQUENCY);
+    panel_driver.set_panel_cfg(GPIO_RST);
+
+    esp_err_t err;
+    err = panel_driver.spi_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD initialized");
+
+    err = panel_driver.io_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD IO: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD IO initialized");
+
+    err = panel_driver.panel_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD panel: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD panel initialized");
+
+    uint16_t *buffer = (uint16_t *)heap_caps_malloc(HORIZONRAL_RES * VERTICAL_RES * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
+    memset(buffer, 0xFF, HORIZONRAL_RES * VERTICAL_RES * sizeof(uint16_t));
+    esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, 0, VERTICAL_RES, HORIZONRAL_RES, buffer);
+    heap_caps_free(buffer);
+
+    // 初始化触控
+    touch_sem = xSemaphoreCreateBinary();
+
+    LCD::FT6336 touch_driver{HORIZONRAL_RES, VERTICAL_RES};
+
+    touch_driver.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
+    touch_driver.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT, my_touch_isr_cb);
+
+    err = touch_driver.i2c_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize I2C bus: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "I2C initialized");
+
+    err = touch_driver.io_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD IO: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD IO initialized");
+
+    err = touch_driver.touch_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize touch: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "Touch initialized");
+
+    touch_task_param_t argv = std::make_pair(panel_driver.panel_handle(),
+                                             touch_driver.touch_handle());
+
+    xTaskCreate(touch_task, "touch", 4096, static_cast<void *>(&argv), 5, NULL);
 #endif
 
 #ifdef YOLO_TEST
