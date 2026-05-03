@@ -125,6 +125,50 @@ dependencies:
     targets:
     - esp32p4
     version: 2.0.2
+  espressif/esp_lcd_st7796:
+    component_hash: 528a864b7dd447aa78472680a1f3e294c8045b4e64d479d176c3c66aa6f7edee
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32c3
+    version: 1.4.0
+  espressif/esp_lcd_touch:
+    component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.2.1
+  espressif/esp_lcd_touch_ft5x06:
+    component_hash: 8ae101b4a321b6327d98751b049e3c7fff2718ad04d676259369ff85d4edbcdf
+    dependencies:
+    - name: espressif/esp_lcd_touch
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^1.2.0
+    - name: idf
+      require: private
+      version: '>=5.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.0~1
   espressif/esp_new_jpeg:
     component_hash: e6af208a875abd0ecfc0213d3751a11b504b463ebde6930f24096047925fa5c1
     dependencies: []
@@ -197,10 +241,12 @@ dependencies:
 direct_dependencies:
 - espressif/esp-dl
 - espressif/esp_lcd_ek79007
+- espressif/esp_lcd_st7796
+- espressif/esp_lcd_touch_ft5x06
 - espressif/esp_sccb_intf
 - espressif/esp_video
 - espressif/yolo26
 - idf
-manifest_hash: 8e4652c95c08dceb5b1b5f997b248f6ff36c434d60eb184155fef15871abbe7d
+manifest_hash: 2acaaee44c6e8fce14374cce096eda0e15d42d171dd1c1f7b03ea34f52f80f68
 target: esp32p4
 version: 2.0.0

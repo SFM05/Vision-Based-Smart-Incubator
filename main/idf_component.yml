@@ -19,3 +19,5 @@ dependencies:
   espressif/esp_sccb_intf: ^0.0.8
   espressif/esp-dl: ^3.3.2
   espressif/yolo26: ^0.1.0
+  espressif/esp_lcd_st7796: ^1.4.0
+  espressif/esp_lcd_touch_ft5x06: ^1.1.0~1

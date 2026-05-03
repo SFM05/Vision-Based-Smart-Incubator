@@ -80,4 +80,4 @@ namespace Image
          */
         void reset();
     };
-}
+} // namespace Image

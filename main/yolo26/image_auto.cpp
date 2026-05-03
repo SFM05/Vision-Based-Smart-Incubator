@@ -99,4 +99,4 @@ namespace Image
         m_data.reset();
         m_width=m_height=0;
     }
-}
+} // namespace Image
