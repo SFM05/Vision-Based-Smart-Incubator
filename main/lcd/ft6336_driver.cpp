@@ -2,6 +2,7 @@
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
 #include "driver/i2c_master.h"
+#include "driver/gpio.h"
 
 #include "ft6336_driver.hpp"
 
@@ -88,9 +89,19 @@ namespace LCD
         err = gpio_pullup_en(m_touch_cfg.int_gpio_num);
         if (err != ESP_OK) [[unlikely]]
         {
-            ESP_LOGE(TAG, "Sset pull mode for interrupt pin failed.");
+            ESP_LOGE(TAG, "Set pull mode for interrupt pin failed.");
             return err;
         }
+        
+#ifdef LOW_LEVEL_INTERRUPT
+        err = gpio_set_intr_type(m_touch_cfg.int_gpio_num, GPIO_INTR_LOW_LEVEL);
+        if (err != ESP_OK) [[unlikely]]
+        {
+            ESP_LOGE(TAG, "Set low level interrupt mode failed.");
+            return err;
+        }
+#endif
+
         return ESP_OK;
     }
 
