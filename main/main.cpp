@@ -88,7 +88,12 @@ static void touch_task(void *argv)
         if (touch_cnt > 0)
         {
             // 先清空原来的区域
-            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_white);
+            esp_lcd_panel_draw_bitmap(panel_handle,
+                                      std::max(x - 25, 0),
+                                      std::max(y - 25, 0),
+                                      std::min(x + 25, static_cast<int>(VERTICAL_RES)),
+                                      std::min(y + 25, static_cast<int>(HORIZONRAL_RES)),
+                                      buffer_white);
 
             x = points[0].x;
             y = points[0].y;
@@ -96,7 +101,12 @@ static void touch_task(void *argv)
             std::string msg = std::format("Touch: x={}, y={}, strength={}", x, y, strength);
             ESP_LOGI(TAG, "%s", msg.c_str());
             // 绘制新区域
-            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_black);
+            esp_lcd_panel_draw_bitmap(panel_handle,
+                                      std::max(x - 25, 0),
+                                      std::max(y - 25, 0),
+                                      std::min(x + 25, static_cast<int>(VERTICAL_RES)),
+                                      std::min(y + 25, static_cast<int>(HORIZONRAL_RES)),
+                                      buffer_black);
         }
         else
         {
@@ -237,7 +247,7 @@ extern "C" void app_main(void)
         ESP_LOGE(TAG, "Failed to initialize LCD IO: %s", esp_err_to_name(err));
         return;
     }
-    ESP_LOGI(TAG, "LCD IO initialized");
+    ESP_LOGI(TAG, "Touch IO initialized");
 
     err = touch_driver.touch_init();
     if (err != ESP_OK)
