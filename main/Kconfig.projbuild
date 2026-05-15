@@ -1,0 +1,8 @@
+menu "WiFi Configuration"
+
+    config ESP_WIFI_SSID
+        string "WiFi SSID"
+
+    config ESP_WIFI_PASSWORD
+        string "WiFi Password"
+endmenu

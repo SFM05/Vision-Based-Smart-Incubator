@@ -21,3 +21,5 @@ dependencies:
   espressif/yolo26: ^0.1.0
   espressif/esp_lcd_st7796: ^1.4.0
   espressif/esp_lcd_touch_ft5x06: ^1.1.0~1
+  espressif/esp_wifi_remote: ^1.5.1
+  espressif/esp_hosted: =2.12.6

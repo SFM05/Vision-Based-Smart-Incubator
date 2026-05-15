@@ -5,7 +5,9 @@ set(srcs "main.cpp"
          "lcd/ft6336_driver.cpp"
          "pipeline/video_pipeline.c"
          "yolo26/yolo_inference.cpp"
-         "yolo26/image_auto.cpp")
+         "yolo26/image_auto.cpp"
+         "iot/wifi.cpp"
+         )
 set(requires esp_lcd
              driver
              esp_video
@@ -15,7 +17,12 @@ set(requires esp_lcd
              unity
              esp_lcd_st7796
              esp_lcd_touch_ft5x06
-             freertos
+             esp_wifi
+             esp_wifi_remote
+             esp_hosted
+             lwip
+             nvs_flash
+            #  freertos
              esp-dl
              esp_partition
              yolo26)
@@ -23,7 +30,8 @@ set(include_dirs "."
                  "camera"
                  "lcd"
                  "pipeline"
-                 "yolo26")
+                 "yolo26"
+                 "iot")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)
