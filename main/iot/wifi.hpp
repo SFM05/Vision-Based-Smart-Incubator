@@ -24,6 +24,8 @@ namespace IOT
         esp_err_t init();
         esp_err_t connect(const std::string &ssid, const std::string &password);
 
+        esp_err_t ntp_sync();
+
     private:
         Wifi() = default;
         ~Wifi() = default;

@@ -7,6 +7,8 @@ set(srcs "main.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
          "iot/wifi.cpp"
+         "iot/iot_utils.cpp"
+         "test.cpp"
          )
 set(requires esp_lcd
              driver
@@ -21,6 +23,7 @@ set(requires esp_lcd
              esp_wifi_remote
              esp_hosted
              lwip
+             esp_http_client
              nvs_flash
             #  freertos
              esp-dl

@@ -1,16 +1,20 @@
-#include <string.h>
-#include <format>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
 #include "nvs_flash.h"
+#include <format>
+#include <string.h>
+#include <string>
+#include <time.h>
 
-#include "lwip/err.h"
-#include "lwip/sys.h"
+// #include "lwip/err.h"
+// #include "lwip/sys.h"
+
+#include "esp_netif_sntp.h"
 
 #include "wifi.hpp"
 
@@ -151,6 +155,30 @@ namespace IOT
             ESP_LOGI(TAG, "Connect failed.");
         else
             ESP_LOGE(TAG, "Unexpected error occurred.");
+
+        return err;
+    }
+
+    esp_err_t Wifi::ntp_sync()
+    {
+        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        esp_netif_sntp_init(&config);
+        auto err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000));
+        if (err != ESP_OK) [[unlikely]]
+        {
+            ESP_LOGE(TAG, "SNTP failed to sync time within 10s.");
+        }
+
+        // 设置时区：UTC+8
+        setenv("TZ", "CST-8", 1);
+        tzset();
+
+        time_t now = time(NULL); // 秒级时间戳
+        struct tm tm_info;
+        localtime_r(&now, &tm_info); // 转本地时间
+        char buffer[32];
+        strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_info);
+        ESP_LOGI(TAG, "SNTP sync time success, current time: %s", buffer);
 
         return err;
     }
