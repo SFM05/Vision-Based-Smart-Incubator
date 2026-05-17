@@ -6,8 +6,10 @@ set(srcs "main.cpp"
          "pipeline/video_pipeline.c"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
+         "iot/nvs_init.cpp"
          "iot/wifi.cpp"
          "iot/iot_utils.cpp"
+         "iot/mqtt.cpp"
          "test.cpp"
          )
 set(requires esp_lcd

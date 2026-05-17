@@ -5,6 +5,7 @@
 #include <string>
 
 #include "iot_utils.hpp"
+#include "nvs_init.hpp"
 #include "wifi.hpp"
 
 #include "test.hpp"
@@ -16,7 +17,7 @@ const char *password = CONFIG_ESP_WIFI_PASSWORD;
 
 void wifi_test()
 {
-    IOT::Wifi::get_instance().init_nvs();
+    NVS_init::nvs_init();
     ESP_LOGI(TAG, "NVS initailized.");
 
     IOT::Wifi::get_instance().init();
@@ -25,13 +26,12 @@ void wifi_test()
     IOT::Wifi::get_instance().connect(ssid, password);
     ESP_LOGI(TAG, "Wifi connected.");
 
-    IOT::Wifi::get_instance().ntp_sync();
+    IOT::ntp_time_sync();
 }
 
 void upload_image_test()
 {
-
-    IOT::Wifi::get_instance().init_nvs();
+    NVS_init::nvs_init();
     ESP_LOGI(TAG, "NVS initailized.");
 
     IOT::Wifi::get_instance().init();
@@ -67,7 +67,7 @@ void upload_image_test()
     ESP_LOGI(TAG, "Image mapped to data memory");
 
     const char *url = "";
-    IOT::upload_file(url, img_ptr, IMAGE_SIZE, "image/jpg");
+    IOT::upload_file(url, img_ptr, IMAGE_SIZE);
 
     spi_flash_munmap(img_handle); // 释放映射
 }
