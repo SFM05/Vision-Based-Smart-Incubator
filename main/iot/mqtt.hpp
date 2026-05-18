@@ -10,6 +10,11 @@ namespace MQTT
     class MQTT
     {
     public:
+        static MQTT &get_instance(){
+            static MQTT instance;
+            return instance;
+        }
+
         void set_mqtt_cfg(const char *uri)
         {
             m_mqtt_cfg.broker.address.uri = uri;

@@ -35,6 +35,11 @@ namespace MQTT
         }
 
         err = esp_event_loop_create_default();
+        if (err == ESP_ERR_INVALID_STATE) [[unlikely]]
+        {
+            ESP_LOGW(TAG, "Event loop has been created before.");
+            return ESP_ERR_INVALID_STATE;
+        }
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Event loop create failed.");

@@ -1,3 +1,4 @@
+#include "esp_err.h"
 #include "esp_log.h"
 #include "esp_partition.h"
 #include "sdkconfig.h"
@@ -5,6 +6,7 @@
 #include <string>
 
 #include "iot_utils.hpp"
+#include "mqtt.hpp"
 #include "nvs_init.hpp"
 #include "wifi.hpp"
 
@@ -14,6 +16,7 @@ static const char *TAG = "test";
 
 const char *ssid = CONFIG_ESP_WIFI_SSID;
 const char *password = CONFIG_ESP_WIFI_PASSWORD;
+const char *mqtt_server = CONFIG_ESP_MQTT_SERVER;
 
 void wifi_test()
 {
@@ -70,4 +73,26 @@ void upload_image_test()
     IOT::upload_file(url, img_ptr, IMAGE_SIZE);
 
     spi_flash_munmap(img_handle); // 释放映射
+}
+
+void mqtt_test()
+{
+    NVS_init::nvs_init();
+    ESP_LOGI(TAG, "NVS initailized.");
+
+    IOT::Wifi::get_instance().init();
+    ESP_LOGI(TAG, "Wifi initailized.");
+
+    IOT::Wifi::get_instance().connect(ssid, password);
+    ESP_LOGI(TAG, "Wifi connected.");
+
+    MQTT::MQTT::get_instance().set_mqtt_cfg(mqtt_server);
+    MQTT::MQTT::get_instance().mqtt_init();
+
+    esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
+                            "test/topic",
+                            "This is a test message.",
+                            0,
+                            0,
+                            0);
 }
