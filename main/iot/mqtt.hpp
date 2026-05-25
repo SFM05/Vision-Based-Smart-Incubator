@@ -1,23 +1,26 @@
 #pragma once
 
+#include "esp_crt_bundle.h"
 #include "esp_err.h"
 #include "esp_event_base.h"
 #include "mqtt_client.h"
-#include "esp_crt_bundle.h"
 
 namespace MQTT
 {
     class MQTT
     {
     public:
-        static MQTT &get_instance(){
+        static MQTT &get_instance()
+        {
             static MQTT instance;
             return instance;
         }
 
-        void set_mqtt_cfg(const char *uri)
+        void set_mqtt_cfg(const char *uri, const char *username, const char *password)
         {
             m_mqtt_cfg.broker.address.uri = uri;
+            m_mqtt_cfg.credentials.username = username;
+            m_mqtt_cfg.credentials.authentication.password = password;
             m_mqtt_cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
         }
         esp_err_t mqtt_init();

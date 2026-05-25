@@ -1,10 +1,19 @@
+#include <cstdint>
+#include <format>
+
+#include "cJSON.h"
 #include "esp_crt_bundle.h"
 #include "esp_err.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_system.h"
 
 #include "esp_netif_sntp.h"
 
+#include "freertos/projdefs.h"
+#include "mqtt.hpp"
+#include "mqtt_client.h"
 #include "wifi.hpp"
 
 #include "iot_utils.hpp"
@@ -29,10 +38,18 @@ namespace IOT
             return err;
         }
 
-        err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000));
+        uint16_t retry = 1;
+        constexpr uint16_t retry_count = 15;
+        do
+        {
+            err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(20000));
+            if (err == ESP_OK)
+                break;
+            ESP_LOGE(TAG, "SNTP failed to sync time within 20s, retry %d/%d", retry, retry_count);
+            retry++;
+        } while (retry <= retry_count);
         if (err != ESP_OK) [[unlikely]]
         {
-            ESP_LOGE(TAG, "SNTP failed to sync time within 10s.");
             return err;
         }
 
@@ -107,5 +124,42 @@ namespace IOT
         esp_http_client_cleanup(client);
 
         return (status_code == 200 || status_code == 201) ? ESP_OK : ESP_FAIL;
+    }
+
+    esp_err_t report_env(float temp, double hum)
+    {
+        // 设置时区：UTC+8
+        setenv("TZ", "CST-8", 1);
+        tzset();
+
+        time_t now = time(NULL); // 秒级时间戳
+        struct tm tm_info;
+        localtime_r(&now, &tm_info); // 转本地时间
+        char time[32];
+        strftime(time, sizeof(time), "%Y-%m-%d %H:%M:%S", &tm_info);
+
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddStringToObject(root, "timestamp", time);
+        cJSON_AddNumberToObject(root, "temp", temp);
+        cJSON_AddNumberToObject(root, "hum", hum);
+        char *json_str = cJSON_Print(root);
+
+        uint8_t mac[6];
+        esp_efuse_mac_get_default(mac);
+        int id = esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
+                                         std::format("device/{}{}{}{}{}{}/data/env", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+                                         json_str,
+                                         0,
+                                         1,
+                                         0);
+
+        delete json_str;
+        cJSON_Delete(root);
+
+        if (id != 0) [[unlikely]]
+        {
+            return ESP_FAIL;
+        }
+        return ESP_OK;
     }
 }

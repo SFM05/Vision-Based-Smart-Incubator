@@ -14,9 +14,29 @@
 
 static const char *TAG = "test";
 
-const char *ssid = CONFIG_ESP_WIFI_SSID;
-const char *password = CONFIG_ESP_WIFI_PASSWORD;
-const char *mqtt_server = CONFIG_ESP_MQTT_SERVER;
+const char *ssid = CONFIG_WIFI_SSID;
+const char *password = CONFIG_WIFI_PASSWORD;
+
+void wifi_example()
+{
+    NVS_init::nvs_init();
+    ESP_LOGI(TAG, "NVS initailized.");
+
+    IOT::Wifi::get_instance().init();
+    ESP_LOGI(TAG, "Wifi initailized.");
+
+    IOT::Wifi::get_instance().connect(ssid, password);
+    ESP_LOGI(TAG, "Wifi connected.");
+
+    // IOT::ntp_time_sync();
+
+    MQTT::MQTT::get_instance().set_mqtt_cfg(CONFIG_MQTT_SERVER,
+                                            CONFIG_MQTT_USERNAME,
+                                            CONFIG_MQTT_PASSWORD);
+    MQTT::MQTT::get_instance().mqtt_init();
+
+    IOT::report_env(36.5, 50.0);
+}
 
 void wifi_test()
 {
@@ -86,7 +106,9 @@ void mqtt_test()
     IOT::Wifi::get_instance().connect(ssid, password);
     ESP_LOGI(TAG, "Wifi connected.");
 
-    MQTT::MQTT::get_instance().set_mqtt_cfg(mqtt_server);
+    MQTT::MQTT::get_instance().set_mqtt_cfg(CONFIG_MQTT_SERVER,
+                                            CONFIG_MQTT_USERNAME,
+                                            CONFIG_MQTT_PASSWORD);
     MQTT::MQTT::get_instance().mqtt_init();
 
     esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),

@@ -1,11 +1,17 @@
 menu "IOT Configuration"
 
-    config ESP_WIFI_SSID
+    config WIFI_SSID
         string "WiFi SSID"
 
-    config ESP_WIFI_PASSWORD
+    config WIFI_PASSWORD
         string "WiFi Password"
 
-    config ESP_MQTT_SERVER
+    config MQTT_SERVER
         string "MQTT Server"
+
+    config MQTT_USERNAME
+        string "MQTT Username"
+
+    config MQTT_PASSWORD
+        string "MQTT Password"
 endmenu

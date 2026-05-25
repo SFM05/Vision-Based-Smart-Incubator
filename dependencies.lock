@@ -1,4 +1,14 @@
 dependencies:
+  espressif/cjson:
+    component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19~2
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
@@ -321,6 +331,7 @@ dependencies:
       type: idf
     version: 5.5.4
 direct_dependencies:
+- espressif/cjson
 - espressif/esp-dl
 - espressif/esp_hosted
 - espressif/esp_lcd_ek79007
@@ -332,6 +343,6 @@ direct_dependencies:
 - espressif/mqtt
 - espressif/yolo26
 - idf
-manifest_hash: 8c7b6c912c6815397f5f18e0ebe0de886cc16eb53ccad10617fbcca57b613c01
+manifest_hash: b1bbe7ed65b5a9faa1b7dd577870ebca233bc2ca5194e78719854b245110063e
 target: esp32p4
 version: 2.0.0

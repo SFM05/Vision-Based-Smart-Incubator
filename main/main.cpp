@@ -122,7 +122,7 @@ static void touch_task(void *argv)
 extern "C" void app_main(void)
 {
 #ifdef WIFI_TEST
-    mqtt_test();
+    wifi_example();
 #endif WIFI_TEST
 
 #ifdef CAMERA_TEST

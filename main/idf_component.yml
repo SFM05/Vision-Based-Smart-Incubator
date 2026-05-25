@@ -24,3 +24,4 @@ dependencies:
   espressif/esp_wifi_remote: ^1.5.1
   espressif/esp_hosted: =2.12.6
   espressif/mqtt: ^1.0.0
+  espressif/cjson: ^1.7.19~2
