@@ -30,7 +30,7 @@ namespace LCD
 
     void FT6336::set_i2c_config(gpio_num_t sda_io_num, gpio_num_t scl_io_num)
     {
-        m_i2c_cfg.i2c_port = -1;
+        m_i2c_cfg.i2c_port = I2C_NUM_1;
         m_i2c_cfg.sda_io_num = sda_io_num;
         m_i2c_cfg.scl_io_num = scl_io_num;
         m_i2c_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
@@ -50,7 +50,7 @@ namespace LCD
         m_touch_cfg.interrupt_callback = iqr_handle;
 
         m_touch_cfg.flags.swap_xy = 0;
-        m_touch_cfg.flags.mirror_x = 1;
+        m_touch_cfg.flags.mirror_x = 0;
         m_touch_cfg.flags.mirror_y = 0;
     }
 

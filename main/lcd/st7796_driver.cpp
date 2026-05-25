@@ -10,8 +10,6 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
-#include "unity.h"
-#include "unity_test_runner.h"
 
 #include "esp_lcd_st7796.h"
 #include "st7796_driver.hpp"
@@ -60,7 +58,7 @@ namespace LCD
     void ST7796::set_panel_cfg(gpio_num_t reset_gpio_num)
     {
         m_panel_cfg.reset_gpio_num = reset_gpio_num;
-        m_panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        m_panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         m_panel_cfg.bits_per_pixel = 16;
     }
 
