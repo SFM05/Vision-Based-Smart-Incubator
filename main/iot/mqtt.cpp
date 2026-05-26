@@ -1,7 +1,12 @@
 #include "mqtt.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "mqtt_client.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <format>
 
 static const char *TAG = "MQTT";
 
@@ -20,7 +25,7 @@ namespace MQTT
         esp_err_t err = esp_mqtt_client_register_event(m_mqtt_handle,
                                                        esp_mqtt_event_id_t::MQTT_EVENT_ANY,
                                                        mqtt_event_handler,
-                                                       nullptr);
+                                                       &m_upload_queue);
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Event register failed.");
@@ -64,6 +69,11 @@ namespace MQTT
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             // TODO：订阅topic
+            uint8_t mac[6];
+            esp_efuse_mac_get_default(mac);
+            esp_mqtt_client_subscribe_single(MQTT::get_instance().m_mqtt_handle,
+                                             std::format("server/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/#", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+                                             1);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -84,7 +94,23 @@ namespace MQTT
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             printf("DATA=%.*s\r\n", event->data_len, event->data);
+            {
+                size_t len = event->topic_len;
+                if (len >= 7 && memcmp(event->topic + len - 7, "/upload", 7) == 0)
+                {
+                    char url[512] = {};
+                    int copy_len = (event->data_len < 512) ? event->data_len : 512;
+                    memcpy(url, event->data, copy_len);
+
+                    QueueHandle_t *queue = static_cast<QueueHandle_t *>(handler_args);
+                    if (queue && *queue)
+                    {
+                        xQueueSend(*queue, url, 0); // 0 = 不阻塞，满了就丢弃
+                    }
+                }
+            }
             break;
+
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)

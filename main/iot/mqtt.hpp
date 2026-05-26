@@ -10,6 +10,8 @@ namespace MQTT
     class MQTT
     {
     public:
+        QueueHandle_t m_upload_queue;
+
         static MQTT &get_instance()
         {
             static MQTT instance;
@@ -36,7 +38,13 @@ namespace MQTT
         esp_mqtt_client_config_t m_mqtt_cfg;
         esp_mqtt_client_handle_t m_mqtt_handle;
 
-        MQTT() : m_mqtt_cfg{}, m_mqtt_handle{} {}
+        MQTT() : m_mqtt_cfg{}, m_mqtt_handle{}
+        {
+            m_upload_queue = xQueueCreate(
+                5,                // 队列深度：最多缓存 5 条待处理 URL
+                sizeof(char[512]) // 每条消息大小：512 字节的字符串
+            );
+        }
         ~MQTT() = default;
     };
 }
