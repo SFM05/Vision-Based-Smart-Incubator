@@ -107,12 +107,17 @@ namespace LCD
             return err;
         }
 
+        vTaskDelay(pdMS_TO_TICKS(50));
+
         err = esp_lcd_panel_init(m_panel_handle);
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Initialize LCD panel failed.");
             return err;
         }
+
+        uint8_t madctl = 0xE8;
+        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
 
         err = esp_lcd_panel_disp_on_off(m_panel_handle, true);
         if (err != ESP_OK) [[unlikely]]

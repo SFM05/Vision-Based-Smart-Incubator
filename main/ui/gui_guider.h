@@ -21,6 +21,7 @@ typedef struct
     lv_obj_t *screen_2_label_1;
     lv_obj_t *screen_2_label_2;
     lv_obj_t *screen_2_label_3;
+    lv_obj_t *screen_2_label_4;
     lv_obj_t *screen_2_slider_1;
 } lv_ui;
 

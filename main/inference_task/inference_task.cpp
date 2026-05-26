@@ -15,6 +15,7 @@
 #include <new>
 
 #include "esp_video_device.h"
+#include "esp_video_isp_ioctl.h"
 #include "linux/videodev2.h"
 #include <sys/mman.h>
 
@@ -157,6 +158,47 @@ fail:
     free(s_cap.buf_start); free(s_cap.buf_len);
     close(s_cap.fd); s_cap.fd = -1;
     return false;
+}
+
+/**
+ * @brief 配置 ISP Bayer 去噪
+ */
+
+static void configure_isp(void)
+{
+    int fd = open(ESP_VIDEO_ISP1_DEVICE_NAME, O_RDWR);
+    if (fd < 0) {
+        ESP_LOGW(TAG, "Cannot open ISP device %s: %s",
+                 ESP_VIDEO_ISP1_DEVICE_NAME, strerror(errno));
+        return;
+    }
+
+    struct v4l2_ext_control ctrl;
+    memset(&ctrl, 0, sizeof(ctrl));
+
+    struct v4l2_ext_controls ctrls;
+    memset(&ctrls, 0, sizeof(ctrls));
+    ctrls.count = 1;
+    ctrls.controls = &ctrl;
+
+    esp_video_isp_bf_t bf;
+    memset(&bf, 0, sizeof(bf));
+    bf.enable = true;
+    bf.level = 15;
+    bf.matrix[0][0] = 1; bf.matrix[0][1] = 2; bf.matrix[0][2] = 1;
+    bf.matrix[1][0] = 2; bf.matrix[1][1] = 4; bf.matrix[1][2] = 2;
+    bf.matrix[2][0] = 1; bf.matrix[2][1] = 2; bf.matrix[2][2] = 1;
+
+    ctrl.id = V4L2_CID_USER_ESP_ISP_BF;
+    ctrl.size = sizeof(bf);
+    ctrl.p_u8 = (__u8 *)&bf;
+
+    if (ioctl(fd, VIDIOC_S_EXT_CTRLS, &ctrls) < 0)
+        ESP_LOGW(TAG, "ISP BF failed: %s", strerror(errno));
+    else
+        ESP_LOGI(TAG, "ISP BF level=%d", bf.level);
+
+    close(fd);
 }
 
 /**
@@ -408,6 +450,8 @@ static void capture_task_fn(void *arg)
         ESP_LOGW(TAG, "Camera init failed, running static only");
         while (true) vTaskDelay(pdMS_TO_TICKS(1000));
     }
+
+    configure_isp();
 
     int tick = 0;
 

@@ -13,6 +13,7 @@
 #include "lvgl_port/lvgl_port.hpp"
 #include "ui/gui_guider.h"
 #include "inference_task/inference_task.hpp"
+#include "sensors/sensor_task.hpp"
 
 /**
  * @brief Camera 相关头文件
@@ -64,8 +65,6 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(panel.spi_init());
     ESP_ERROR_CHECK(panel.io_init());
     ESP_ERROR_CHECK(panel.panel_init());
-    esp_lcd_panel_swap_xy(panel.panel_handle(), 1);
-    esp_lcd_panel_mirror(panel.panel_handle(), 1, 1);
     ESP_LOGI(TAG, "LCD ready");
 
     /**
@@ -75,6 +74,12 @@ extern "C" void app_main(void)
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
     touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
     ESP_ERROR_CHECK(touch.i2c_init());
+
+    /**
+     * @brief 传感器 I2C 设备初始化 (必须在 touch.io_init() 之前做 I2C 事务)
+     */
+    ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK) {
@@ -88,9 +93,6 @@ extern "C" void app_main(void)
      */
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    /**
-     * @brief 创建 I2C_NUM_0 (GPIO 7/8)，框架自动探测已禁用，总线空闲
-     */
     i2c_master_bus_handle_t cam_i2c = NULL;
     i2c_master_bus_config_t cam_bus = {};
     cam_bus.i2c_port = I2C_NUM_0;
@@ -145,10 +147,16 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "UI ready");
 
     /**
+     * @brief 传感器任务 (SHT40 + SGP30)，使用 Touch 的 I2C_NUM_1 总线
+     * 采样间隔 2s，数据通过 LVGL timer 更新到 screen2 的 Temperature/Humidity 标签
+     */
+    start_sensor_task(&guider_ui);
+
+    /**
      * @brief 启动推理任务
      */
     start_inference_task(&guider_ui);
-    ESP_LOGI(TAG, "Capture task started");
+    ESP_LOGI(TAG, "Inference task started");
 
     /**
      * @brief 主循环 (LVGL tick)
