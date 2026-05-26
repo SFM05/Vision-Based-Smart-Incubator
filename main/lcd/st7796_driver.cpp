@@ -96,7 +96,7 @@ namespace LCD
         err = esp_lcd_new_panel_st7796(m_io_handle, &m_panel_cfg, &m_panel_handle);
         if (err != ESP_OK) [[unlikely]]
         {
-            ESP_LOGE("TAG", "Create LCD panel failed.");
+            ESP_LOGE(TAG, "Create LCD panel failed.");
             return err;
         }
 
@@ -132,4 +132,4 @@ namespace LCD
         return m_panel_handle;
     }
 
-} // namespace LCD
+} /* namespace LCD */

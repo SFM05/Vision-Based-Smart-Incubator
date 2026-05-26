@@ -18,6 +18,10 @@
 #include "linux/videodev2.h"
 #include <sys/mman.h>
 
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void *)-1)
+#endif
+
 #include "esp_partition.h"
 #include "spi_flash_mmap.h"
 #include "dl_model_base.hpp"
@@ -26,9 +30,7 @@
 #include "image_auto.hpp"
 #include "coco_classes.hpp"
 
-#ifndef MAP_FAILED
-#define MAP_FAILED ((void *)-1)
-#endif
+
 
 static const char *TAG = "camera_preview";
 static constexpr int CROP_SIZE = 640;
@@ -37,6 +39,7 @@ static struct {
     SemaphoreHandle_t mutex;
     int  detection_count;
     bool has_new_result;
+    volatile bool inferring;
     uint8_t *rgb888_buf;
     bool initialized;
 } s_state = {};
@@ -47,7 +50,9 @@ static lv_ui *s_ui = nullptr;
 static dl::Model *s_model = nullptr;
 static YOLO26    *s_processor = nullptr;
 
-/* ======================== V4L2 Capture ======================== */
+/**
+ * @brief V4L2 捕获模块
+ */
 
 static struct {
     int     fd;
@@ -67,7 +72,10 @@ static bool capture_init(void)
     memset(&s_cap, 0, sizeof(s_cap));
     s_cap.fd = -1;
 
-    vTaskDelay(pdMS_TO_TICKS(200)); // 等设备注册完成
+    /**
+     * @brief 等待 V4L2 设备注册完成
+     */
+    vTaskDelay(pdMS_TO_TICKS(200));
     s_cap.fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR);
     if (s_cap.fd < 0) {
         ESP_LOGE(TAG, "Failed to open %s (errno=%d)", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, errno);
@@ -151,24 +159,9 @@ fail:
     return false;
 }
 
-static void capture_deinit(void)
-{
-    if (s_cap.streaming) {
-        enum v4l2_buf_type bt = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        ioctl(s_cap.fd, VIDIOC_STREAMOFF, &bt);
-    }
-    if (s_cap.buf_start) {
-        for (int i = 0; i < s_cap.num_bufs; i++)
-            if (s_cap.buf_start[i] && s_cap.buf_start[i] != MAP_FAILED)
-                munmap(s_cap.buf_start[i], s_cap.buf_len[i]);
-        free(s_cap.buf_start); free(s_cap.buf_len);
-    }
-    if (s_cap.fd >= 0) close(s_cap.fd);
-    memset(&s_cap, 0, sizeof(s_cap));
-    s_cap.fd = -1;
-}
-
-/* ======================== Crop & Convert ======================== */
+/**
+ * @brief 图像裁剪与格式转换
+ */
 
 static void crop_center_rgb565_to_rgb888(
     const uint8_t *src, int src_w, int src_h,
@@ -191,7 +184,9 @@ static void crop_center_rgb565_to_rgb888(
     }
 }
 
-/* ======================== YOLO Model ======================== */
+/**
+ * @brief YOLO 模型加载与初始化
+ */
 
 static bool model_init(void)
 {
@@ -204,13 +199,9 @@ static bool model_init(void)
     return true;
 }
 
-static void model_deinit(void)
-{
-    delete s_processor; s_processor = nullptr;
-    delete s_model;     s_model     = nullptr;
-}
-
-/* ======================== Draw Box ======================== */
+/**
+ * @brief 绘制检测框
+ */
 
 static void draw_box_rgb888(uint8_t *img, int w, int h,
                             int x1, int y1, int x2, int y2,
@@ -237,7 +228,9 @@ static void draw_box_rgb888(uint8_t *img, int w, int h,
     }
 }
 
-/* ======================== Canvas Update Timer ======================== */
+/**
+ * @brief LVGL 画布更新定时器
+ */
 
 static void ui_update_timer_cb(lv_timer_t *timer)
 {
@@ -253,6 +246,18 @@ static void ui_update_timer_cb(lv_timer_t *timer)
         return;
     }
 
+    if (s_state.inferring) {
+        if (s_ui->screen_1_btn_1)
+            lv_obj_add_state(s_ui->screen_1_btn_1, LV_STATE_DISABLED);
+        if (s_ui->screen_2_btn_1)
+            lv_obj_add_state(s_ui->screen_2_btn_1, LV_STATE_DISABLED);
+    } else {
+        if (s_ui->screen_1_btn_1)
+            lv_obj_clear_state(s_ui->screen_1_btn_1, LV_STATE_DISABLED);
+        if (s_ui->screen_2_btn_1)
+            lv_obj_clear_state(s_ui->screen_2_btn_1, LV_STATE_DISABLED);
+    }
+
     char label_buf[32];
     lv_snprintf(label_buf, sizeof(label_buf), "Current\nNum: %d", count);
     if (s_ui->screen_1_label_1)
@@ -265,14 +270,18 @@ static void ui_update_timer_cb(lv_timer_t *timer)
         uint8_t *canvas_raw = (uint8_t *)img_dsc->data;
         size_t px_stride = sizeof(lv_color_t) + 1;
 
+        int src_x[320];
+        for (int x = 0; x < 320; x++)
+            src_x[x] = (x * CROP_SIZE) / 320;
+
         for (int y = 0; y < 320; y++) {
             int sy = (y * CROP_SIZE) / 320;
             const uint8_t *src_row = src + sy * CROP_SIZE * 3;
+            size_t row_off = y * 320 * px_stride;
             for (int x = 0; x < 320; x++) {
-                int sx = (x * CROP_SIZE) / 320;
-                const uint8_t *p = src_row + sx * 3;
+                const uint8_t *p = src_row + src_x[x] * 3;
                 lv_color_t c = lv_color_make(p[0], p[1], p[2]);
-                size_t off = (y * 320 + x) * px_stride;
+                size_t off = row_off + x * px_stride;
                 memcpy(canvas_raw + off, &c, sizeof(lv_color_t));
                 canvas_raw[off + sizeof(lv_color_t)] = 255;
             }
@@ -288,9 +297,9 @@ static void ui_update_timer_cb(lv_timer_t *timer)
     xSemaphoreGive(s_state.mutex);
 }
 
-/* ======================== Capture Task ======================== */
-
-/* ======================== 处理静态图片 ======================== */
+/**
+ * @brief 处理静态图片 (12995.jpg)
+ */
 
 static void process_static_image(uint8_t *crop_buf)
 {
@@ -309,17 +318,23 @@ static void process_static_image(uint8_t *crop_buf)
     spi_flash_munmap(img_handle);
     if (!decoded.data_const()) { ESP_LOGE(TAG, "JPEG decode failed"); return; }
 
-    // 缩放 + 填充至 640×640
+    /**
+     * @brief 缩放 + 填充至 640×640
+     */
     auto resized = resize(decoded, CROP_SIZE, CROP_SIZE, true);
     decoded.reset();
     if (!resized.data_const()) { ESP_LOGE(TAG, "Resize failed"); return; }
 
-    // 复制到 crop_buf
+    /**
+     * @brief 复制到 crop_buf
+     */
     memcpy(crop_buf, resized.data_const().get(), CROP_SIZE * CROP_SIZE * 3);
     resized.reset();
 
     int detect_count = 0;
     if (s_model && s_processor) {
+        s_state.inferring = true;
+
         uint8_t *inf_buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
         if (inf_buf) {
             memcpy(inf_buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
@@ -340,6 +355,8 @@ static void process_static_image(uint8_t *crop_buf)
                                 0, 255, 0);
             }
         }
+
+        s_state.inferring = false;
     }
 
     if (xSemaphoreTake(s_state.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -347,10 +364,15 @@ static void process_static_image(uint8_t *crop_buf)
         s_state.has_new_result = true;
         xSemaphoreGive(s_state.mutex);
     }
-    vTaskDelay(pdMS_TO_TICKS(3000)); // 显示 3 秒
+    /**
+     * @brief 显示静态图片结果 3 秒
+     */
+    vTaskDelay(pdMS_TO_TICKS(3000));
 }
 
-/* ======================== Capture Task ======================== */
+/**
+ * @brief 捕获与推理主任务
+ */
 
 static void capture_task_fn(void *arg)
 {
@@ -374,26 +396,23 @@ static void capture_task_fn(void *arg)
     s_state.rgb888_buf = crop_buf;
     s_state.initialized = true;
 
-    // 先处理静态图片 12995.jpg
+    /**
+     * @brief 先处理静态图片 12995.jpg
+     */
     process_static_image(crop_buf);
 
-    // 再初始化和启动摄像头
+    /**
+     * @brief 再初始化和启动摄像头（先分配推理缓冲区会影响 ISP DMA，故摄像头启动后再分配）
+     */
     if (!capture_init()) {
         ESP_LOGW(TAG, "Camera init failed, running static only");
         while (true) vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    int tick_countdown = 0;
+    int tick = 0;
 
     while (true) {
-        int cur_interval = s_interval_sec;
-        if (tick_countdown <= 0)
-            tick_countdown = cur_interval * 20;
-
         vTaskDelay(pdMS_TO_TICKS(50));
-        tick_countdown--;
-
-        if (tick_countdown > 0) continue;
         if (!s_cap.streaming) continue;
 
         struct v4l2_buffer buf;
@@ -402,7 +421,6 @@ static void capture_task_fn(void *arg)
         buf.memory = V4L2_MEMORY_MMAP;
 
         if (ioctl(s_cap.fd, VIDIOC_DQBUF, &buf) < 0) {
-            ESP_LOGW(TAG, "DQBUF failed");
             continue;
         }
         if (buf.index >= (unsigned)s_cap.num_bufs) {
@@ -410,14 +428,20 @@ static void capture_task_fn(void *arg)
             continue;
         }
 
+        tick++;
+        bool do_inference = (tick >= s_interval_sec * 20);
+        if (do_inference) tick = 0;
+
         uint8_t *frame = (uint8_t *)s_cap.buf_start[buf.index];
         s_cap.last_index = buf.index;
 
         esp_cache_msync(frame, s_cap.buf_len[buf.index],
                         ESP_CACHE_MSYNC_FLAG_DIR_M2C);
 
-        crop_center_rgb565_to_rgb888(frame, s_cap.width, s_cap.height,
-                                      crop_buf, CROP_SIZE, CROP_SIZE);
+        if (do_inference) {
+            crop_center_rgb565_to_rgb888(frame, s_cap.width, s_cap.height,
+                                          crop_buf, CROP_SIZE, CROP_SIZE);
+        }
 
         {
             struct v4l2_buffer q;
@@ -428,31 +452,36 @@ static void capture_task_fn(void *arg)
             ioctl(s_cap.fd, VIDIOC_QBUF, &q);
         }
 
+        if (!do_inference) continue;
+
         int detect_count = 0;
 
         if (s_model && s_processor) {
+            s_state.inferring = true;
+
             uint8_t *inf_buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
-            if (inf_buf) {
-                memcpy(inf_buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
+            if (!inf_buf) { s_state.inferring = false; continue; }
+            memcpy(inf_buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
 
-                dl::image::img_t it = {
-                    .data = inf_buf,
-                    .width = (uint16_t)CROP_SIZE,
-                    .height = (uint16_t)CROP_SIZE,
-                    .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888
-                };
-                Image::ImageAuto img(it);
-                auto results = yolo_inference(s_model, img, *s_processor);
-                detect_count = (int)results.size();
-                ESP_LOGI(TAG, "Camera: %d objects", detect_count);
+            dl::image::img_t it = {
+                .data = inf_buf,
+                .width = (uint16_t)CROP_SIZE,
+                .height = (uint16_t)CROP_SIZE,
+                .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888
+            };
+            Image::ImageAuto img(it);
+            auto results = yolo_inference(s_model, img, *s_processor);
+            detect_count = (int)results.size();
+            ESP_LOGI(TAG, "Camera: %d objects", detect_count);
 
-                for (size_t i = 0; i < results.size(); i++) {
-                    auto &r = results[i];
-                    draw_box_rgb888(crop_buf, CROP_SIZE, CROP_SIZE,
-                                    r.box[0], r.box[1], r.box[2], r.box[3],
-                                    0, 255, 0);
-                }
+            for (size_t i = 0; i < results.size(); i++) {
+                auto &r = results[i];
+                draw_box_rgb888(crop_buf, CROP_SIZE, CROP_SIZE,
+                                r.box[0], r.box[1], r.box[2], r.box[3],
+                                0, 255, 0);
             }
+
+            s_state.inferring = false;
         }
 
         if (xSemaphoreTake(s_state.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -461,14 +490,11 @@ static void capture_task_fn(void *arg)
             xSemaphoreGive(s_state.mutex);
         }
     }
-
-    heap_caps_free(crop_buf);
-    capture_deinit();
-    model_deinit();
-    vTaskDelete(NULL);
 }
 
-/* ======================== Public API ======================== */
+/**
+ * @brief 公开 API 接口
+ */
 
 void start_inference_task(lv_ui *ui)
 {
@@ -483,12 +509,17 @@ void start_inference_task(lv_ui *ui)
 
     BaseType_t ret = xTaskCreatePinnedToCore(
         capture_task_fn, "capture", 32768, NULL,
-        configMAX_PRIORITIES - 2, NULL, 0);
+        configMAX_PRIORITIES - 2, NULL, 1);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create capture task");
     } else {
         ESP_LOGI(TAG, "Capture task created");
     }
+}
+
+bool inference_is_running(void)
+{
+    return s_state.inferring;
 }
 
 void inference_set_interval_seconds(int sec)

@@ -1,6 +1,5 @@
 #include "gui_guider.h"
 #include "events_init.h"
-#include "custom.h"
 
 void setup_scr_screen_2(lv_ui *ui)
 {

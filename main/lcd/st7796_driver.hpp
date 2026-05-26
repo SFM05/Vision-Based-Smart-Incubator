@@ -92,4 +92,4 @@ namespace LCD
          */
         esp_lcd_panel_handle_t panel_handle();
     };
-} // namespace LCD
+} /* namespace LCD */

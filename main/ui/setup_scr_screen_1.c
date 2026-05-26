@@ -1,7 +1,6 @@
 #include "esp_heap_caps.h"
 #include "gui_guider.h"
 #include "events_init.h"
-#include "custom.h"
 #include <string.h>
 #include "esp_cache.h"
 #include <stdlib.h>

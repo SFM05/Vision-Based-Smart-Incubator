@@ -1,3 +1,21 @@
+idf_build_get_property(component_targets __COMPONENT_TARGETS)
+if ("___idf_espressif__esp-dl" IN_LIST component_targets)
+   idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
+elseif("___idf_esp-dl" IN_LIST component_targets)
+   idf_component_get_property(espdl_dir esp-dl COMPONENT_DIR)
+endif()
+if ("___idf_espressif__esp_video" IN_LIST component_targets)
+   idf_component_get_property(esp_video_dir espressif__esp_video COMPONENT_DIR)
+endif()
+if ("___idf_espressif__esp_sccb_intf" IN_LIST component_targets)
+   idf_component_get_property(esp_sccb_dir espressif__esp_sccb_intf COMPONENT_DIR)
+endif()
+if ("___idf_espressif__esp_cam_sensor" IN_LIST component_targets)
+   idf_component_get_property(esp_cam_sensor_dir espressif__esp_cam_sensor COMPONENT_DIR)
+endif()
+set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
+include(${cmake_dir}/utilities.cmake)
+
 set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
@@ -8,7 +26,6 @@ set(srcs "main.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
          "ui/setup_scr_screen_2.c"
-         "ui/setup_scr_screen.c"
          "ui/events_init.c")
 set(requires esp_lcd
              driver
@@ -30,21 +47,12 @@ set(include_dirs "."
                  "ui"
                  "inference_task"
                  "yolo26"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_video/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_video/private_include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_sccb_intf/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_sccb_intf/sccb_i2c/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_cam_sensor/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_cam_sensor/sensors/ov5647/include")
-
-idf_build_get_property(component_targets __COMPONENT_TARGETS)
-if ("___idf_espressif__esp-dl" IN_LIST component_targets)
-   idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
-elseif("___idf_esp-dl" IN_LIST component_targets)
-   idf_component_get_property(espdl_dir esp-dl COMPONENT_DIR)
-endif()
-set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
-include(${cmake_dir}/utilities.cmake)
+                 "${esp_video_dir}/include"
+                 "${esp_video_dir}/private_include"
+                 "${esp_sccb_dir}/include"
+                 "${esp_sccb_dir}/sccb_i2c/include"
+                 "${esp_cam_sensor_dir}/include"
+                 "${esp_cam_sensor_dir}/sensors/ov5647/include")
 
 idf_component_register(SRCS ${srcs}
                       REQUIRES ${requires}
