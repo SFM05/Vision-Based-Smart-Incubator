@@ -77,47 +77,79 @@ void wifi_example()
     localtime_r(&now, &tm_info); // 转本地时间
     char time[32];
     strftime(time, sizeof(time), "%Y-%m-%d %H:%M:%S", &tm_info);
+    // NTP同步失败，时间位1970。上报空时间戳，使用服务器时间
     if (time[0] != '2')
         memset(time, 0, sizeof(time));
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "timestamp", time);
     cJSON_AddNumberToObject(root, "plateid", 0);
-    cJSON_AddStringToObject(root, "filename", "test");
+    cJSON_AddStringToObject(root, "imgpath", "test_img");
+    cJSON_AddStringToObject(root, "txtpath", "text_txt");
+    cJSON_AddNumberToObject(root, "number", -1);
     char *json_str = cJSON_Print(root);
-    cJSON_Delete(root);
 
     uint8_t mac[6];
     esp_efuse_mac_get_default(mac);
-    int id = esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
-                                     std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/upload/image", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
-                                     json_str,
-                                     0,
-                                     1,
-                                     0);
+    esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
+                            std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/upload", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+                            json_str,
+                            0,
+                            1,
+                            0);
+    cJSON_Delete(root);
 
     char msg[512] = {};
-    // 阻塞等待队列消息（portMAX_DELAY = 一直等）
-    if (xQueueReceive(MQTT::MQTT::get_instance().m_upload_queue,
-                        msg,
-                        pdMS_TO_TICKS(30000)) == pdTRUE)
+    while (true)
     {
-        ESP_LOGI(TAG, "Message: %s", msg);
-
-        root = cJSON_Parse(msg);
-        if (root == nullptr)
+        // 阻塞等待队列消息
+        if (xQueueReceive(MQTT::MQTT::get_instance().m_upload_queue,
+                          msg,
+                          pdMS_TO_TICKS(30000)) == pdTRUE)
         {
-            ESP_LOGE(TAG, "Parse JSON error.");
-            return;
-        }
-        char url[512];
-        strncpy(url, cJSON_GetObjectItem(root, "url")->valuestring, sizeof(url));
-        cJSON_Delete(root);
+            ESP_LOGI(TAG, "Message: %s", msg);
 
-        IOT::upload_file(url, img_ptr, IMAGE_SIZE);
+            root = cJSON_Parse(msg);
+            if (root == nullptr)
+            {
+                ESP_LOGE(TAG, "Parse JSON error.");
+                return;
+            }
+            char url[512];
+            char path[64];
+            char time[32];
+            strncpy(url, cJSON_GetObjectItem(root, "url")->valuestring, 512);
+            strncpy(path, cJSON_GetObjectItem(root, "path")->valuestring, 54);
+            strncpy(time, cJSON_GetObjectItem(root, "timestamp")->valuestring, 32);
+            cJSON_Delete(root);
+            ESP_LOGI(TAG, "%s", url);
+
+            if (strcmp(path, "test_img") == 0)
+            {
+                IOT::upload_file(url, img_ptr, IMAGE_SIZE);
+
+                root = cJSON_CreateObject();
+                cJSON_AddStringToObject(root, "timestamp", time);
+                cJSON_AddNumberToObject(root, "plateid", 0);
+                json_str = cJSON_Print(root);
+                uint8_t mac[6];
+                esp_efuse_mac_get_default(mac);
+                esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
+                                        std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/uploadsucess", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+                                        json_str,
+                                        0,
+                                        1,
+                                        0);
+                // 需要在url和path使用完之后释放
+                cJSON_Delete(root);
+            }
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Unable to receive feedback or stream has finished.");
+            break;
+        }
     }
-    else
-        ESP_LOGE(TAG, "Unable to receive feedback from server.");
 
     spi_flash_munmap(img_handle); // 释放映射
 }
