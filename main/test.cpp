@@ -135,7 +135,7 @@ void wifi_example()
                 uint8_t mac[6];
                 esp_efuse_mac_get_default(mac);
                 esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
-                                        std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/uploadsucess", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+                                        std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/uploadsuccess", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
                                         json_str,
                                         0,
                                         1,
