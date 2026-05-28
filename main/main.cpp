@@ -24,6 +24,8 @@
 #include "yolo_inference.hpp"
 #include "yolo26.hpp"
 
+#include "test.hpp"
+
 static const char *TAG = "main";
 
 // LCD参数
@@ -43,7 +45,8 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 
 constexpr unsigned int CLK_FREQUENCY = 40e6; // 最大80MHz
 
-#define TOUCH_LCD_TEST
+#define WIFI_TEST
+// #define TOUCH_LCD_TEST
 // #define CAMERA_TEST
 // #define YOLO_TEST // 启用YOLO测试
 
@@ -118,6 +121,10 @@ static void touch_task(void *argv)
 
 extern "C" void app_main(void)
 {
+#ifdef WIFI_TEST
+    wifi_example();
+#endif WIFI_TEST
+
 #ifdef CAMERA_TEST
     // /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
     // camera_driver_ctx_t camera_ctx;

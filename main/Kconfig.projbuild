@@ -1,0 +1,17 @@
+menu "IOT Configuration"
+
+    config IOT_WIFI_SSID
+        string "WiFi SSID"
+
+    config IOT_WIFI_PASSWORD
+        string "WiFi Password"
+
+    config IOT_MQTT_SERVER
+        string "Address of MQTT Server"
+
+    config IOT_MQTT_USERNAME
+        string "MQTT server Username"
+
+    config IOT_MQTT_PASSWORD
+        string "MQTT server Password"
+endmenu
