@@ -7,6 +7,8 @@
 
 #include "inference_task/inference_task.hpp"
 
+MirrorConfig LvglPort::s_mirror{};
+
 static const char *TAG = "lvgl_port";
 
 static void lvgl_tick_task(void *arg)
@@ -56,16 +58,21 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     esp_lcd_touch_get_data(touch, &point, &cnt, 1);
 
     if (cnt > 0) {
-        /**
-         * @brief raw_x 0-319 (垂直)
-         */
         int rx = point.x;
-        /**
-         * @brief raw_y 0-477 (水平)
-         */
         int ry = point.y;
-        data->point.x = (477 - ry) * 479 / 477;
-        data->point.y = rx;
+
+        const auto& m = LvglPort::mirror();
+        if (m.mv) {
+            int src_x = m.my ? (477 - ry) : ry;
+            int src_y = m.mx ? rx : (319 - rx);
+            data->point.x = src_x * 479 / 477;
+            data->point.y = src_y;
+        } else {
+            int src_x = m.mx ? (319 - rx) : rx;
+            int src_y = m.my ? (477 - ry) : ry;
+            data->point.x = src_x * 479 / 319;
+            data->point.y = src_y * 319 / 477;
+        }
         data->state = LV_INDEV_STATE_PR;
     } else {
         data->state = LV_INDEV_STATE_REL;
@@ -136,4 +143,9 @@ void LvglPort::refresh()
 {
     lv_disp_t *d = lv_disp_get_default();
     if (d) lv_refr_now(d);
+}
+
+void LvglPort::set_mirror(const MirrorConfig& cfg)
+{
+    s_mirror = cfg;
 }

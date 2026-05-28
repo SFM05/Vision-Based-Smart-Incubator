@@ -96,7 +96,7 @@ dependencies:
     - esp32p4
     version: 1.3.6
   espressif/esp_ipa:
-    component_hash: 7547b050a99351a85aaba8ba38211c36fd4769c2ae3e570fa330dc90dfd2704c
+    component_hash: 854ba797f5cd5a49b739e2126287683605ed68f474a3a931b32d56dee2353d59
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -106,11 +106,11 @@ dependencies:
       require: private
       version: '>=5.4'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32p4
-    version: 0.2.0
+    version: 0.3.0~1
   espressif/esp_lcd_st7796:
     component_hash: 528a864b7dd447aa78472680a1f3e294c8045b4e64d479d176c3c66aa6f7edee
     dependencies:
@@ -185,7 +185,7 @@ dependencies:
       type: service
     version: 0.0.8
   espressif/esp_video:
-    component_hash: 37f7a3b16aa842e612180d5a4698db1c3bc36142a0b78664eb4ffe67c8cd0510
+    component_hash: b8a84e86a65e35ece312bba0ac37a5539a865f2d6da76fd4ea0344f83339e5df
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -194,7 +194,7 @@ dependencies:
     - name: espressif/esp_cam_sensor
       registry_url: https://components.espressif.com
       require: private
-      version: 0.9.*
+      version: 0.*
     - name: espressif/esp_h264
       registry_url: https://components.espressif.com
       require: private
@@ -202,7 +202,7 @@ dependencies:
     - name: espressif/esp_ipa
       registry_url: https://components.espressif.com
       require: private
-      version: 0.2.*
+      version: 0.*
     - name: idf
       require: private
       version: '>=5.4'
@@ -211,7 +211,7 @@ dependencies:
       type: service
     targets:
     - esp32p4
-    version: 0.8.0~3
+    version: 0.8.0
   espressif/yolo26:
     component_hash: 4b7682b4b94e4886ddf9c7cd97706a9715d468667b69d9adb290fbfac0d5e0ee
     dependencies:
@@ -226,7 +226,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.5.3
+    version: 6.0.1
   lvgl/lvgl:
     component_hash: d7c1ac037ae6e85d94897f807d6e7ba0946a83e720074fc95a4f6241da9f9f53
     dependencies: []
@@ -236,6 +236,7 @@ dependencies:
     version: 8.4.0
 direct_dependencies:
 - espressif/esp-dl
+- espressif/esp_ipa
 - espressif/esp_lcd_st7796
 - espressif/esp_lcd_touch_ft5x06
 - espressif/esp_sccb_intf
@@ -243,6 +244,6 @@ direct_dependencies:
 - espressif/yolo26
 - idf
 - lvgl/lvgl
-manifest_hash: da51f359ac9b6fdc3a416e14e0aa057b28ec572c0619e2d5c6505655438f13e0
+manifest_hash: fff9492d8918ccd7e6e0d6d3513fda5c899db7e095471a34bec6cbf474af84a9
 target: esp32p4
-version: 2.0.0
+version: 3.0.0

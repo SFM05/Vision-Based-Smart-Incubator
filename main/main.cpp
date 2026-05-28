@@ -137,7 +137,31 @@ extern "C" void app_main(void)
         panel.io_handle(),
         touch.touch_handle(),
         W, H));
-    ESP_LOGI(TAG, "LVGL ready");
+
+    /**
+     * @brief 设置屏幕 X Y 双轴镜像，并同步到 LVGL 触摸映射
+     *
+     * MX=1: X 轴镜像（水平翻转）
+     * MY=1: Y 轴镜像（垂直翻转）
+     * MV=1: 横屏模式（行列交换）
+     *
+     * 修改镜像后必须同步触摸，否则触摸会错位。
+     * 运行时修改镜像示例:
+     * @code
+     *   panel.set_mirror({.mv=true, .mx=true, .my=false});   // 仅 X 镜像
+     *   LvglPort::set_mirror(panel.mirror());
+     * @endcode
+     */
+    {
+        MirrorConfig cfg;
+        cfg.mv = true;   // 横屏
+        cfg.mx = false;  // 取消 X 轴镜像
+        cfg.my = false;  // 取消 Y 轴镜像
+        panel.set_mirror(cfg);
+        LvglPort::set_mirror(cfg);
+    }
+    ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
+             panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
 
     /**
      * @brief UI 初始化

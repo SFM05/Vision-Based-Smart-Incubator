@@ -116,7 +116,7 @@ namespace LCD
             return err;
         }
 
-        uint8_t madctl = 0xE8;
+        uint8_t madctl = m_mirror.to_madctl();
         esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
 
         err = esp_lcd_panel_disp_on_off(m_panel_handle, true);
@@ -135,6 +135,13 @@ namespace LCD
     esp_lcd_panel_handle_t ST7796::panel_handle()
     {
         return m_panel_handle;
+    }
+
+    void ST7796::set_mirror(const MirrorConfig& cfg)
+    {
+        m_mirror = cfg;
+        uint8_t madctl = m_mirror.to_madctl();
+        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
     }
 
 } /* namespace LCD */
