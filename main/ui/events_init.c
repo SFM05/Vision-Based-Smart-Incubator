@@ -38,11 +38,6 @@ static void slider_interval_cb(lv_event_t *e)
     lv_label_set_text(ui->screen_2_label_3, buf);
 }
 
-void events_init_screen(lv_ui *ui)
-{
-    (void)ui;
-}
-
 void events_init_screen_1(lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->screen_1_btn_1, btn_param_cb, LV_EVENT_CLICKED, ui);

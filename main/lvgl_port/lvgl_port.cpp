@@ -5,6 +5,10 @@
 #include "esp_timer.h"
 #include "esp_cache.h"
 
+#include "inference_task/inference_task.hpp"
+
+MirrorConfig LvglPort::s_mirror{};
+
 static const char *TAG = "lvgl_port";
 
 static void lvgl_tick_task(void *arg)
@@ -12,7 +16,9 @@ static void lvgl_tick_task(void *arg)
     lv_tick_inc(1);
 }
 
-// 逐行 flush — 配合 MADCTL MV=1，每行 480 像素写满一行
+/**
+ * @brief 全区域 flush — 一次绘制整个脏矩形区域
+ */
 static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)drv->user_data;
@@ -23,14 +29,9 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
     esp_cache_msync((void *)color_map, flush_sz,
                     ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
 
-    int w = lv_area_get_width(area);
-    int h = lv_area_get_height(area);
-    for (int i = 0; i < h; i++) {
-        int y = area->y1 + i;
-        esp_lcd_panel_draw_bitmap(panel, area->x1, y,
-                                  area->x2 + 1, y + 1,
-                                  &color_map[i * w]);
-    }
+    esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1,
+                              area->x2 + 1, area->y2 + 1,
+                              color_map);
     lv_disp_flush_ready(drv);
 }
 
@@ -39,13 +40,16 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     esp_lcd_touch_handle_t touch = (esp_lcd_touch_handle_t)drv->user_data;
     if (!touch) { data->state = LV_INDEV_STATE_REL; return; }
 
+    if (inference_is_running()) {
+        data->state = LV_INDEV_STATE_REL;
+        return;
+    }
+
     esp_err_t err = esp_lcd_touch_read_data(touch);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "touch I2C err, retry");
         err = esp_lcd_touch_read_data(touch);
     }
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "touch I2C err twice, skip");
         data->state = LV_INDEV_STATE_REL; return;
     }
 
@@ -54,10 +58,21 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     esp_lcd_touch_get_data(touch, &point, &cnt, 1);
 
     if (cnt > 0) {
-        int rx = point.x; // raw_x 0-319 (垂直)
-        int ry = point.y; // raw_y 0-477 (水平)
-        data->point.x = (477 - ry) * 479 / 477;
-        data->point.y = rx;
+        int rx = point.x;
+        int ry = point.y;
+
+        const auto& m = LvglPort::mirror();
+        if (m.mv) {
+            int src_x = m.my ? (477 - ry) : ry;
+            int src_y = m.mx ? rx : (319 - rx);
+            data->point.x = src_x * 479 / 477;
+            data->point.y = src_y;
+        } else {
+            int src_x = m.mx ? (319 - rx) : rx;
+            int src_y = m.my ? (477 - ry) : ry;
+            data->point.x = src_x * 479 / 319;
+            data->point.y = src_y * 319 / 477;
+        }
         data->state = LV_INDEV_STATE_PR;
     } else {
         data->state = LV_INDEV_STATE_REL;
@@ -128,4 +143,9 @@ void LvglPort::refresh()
 {
     lv_disp_t *d = lv_disp_get_default();
     if (d) lv_refr_now(d);
+}
+
+void LvglPort::set_mirror(const MirrorConfig& cfg)
+{
+    s_mirror = cfg;
 }

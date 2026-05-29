@@ -6,7 +6,6 @@ extern "C" {
 
 #include "gui_guider.h"
 
-void events_init_screen(lv_ui *ui);
 void events_init_screen_1(lv_ui *ui);
 void events_init_screen_2(lv_ui *ui);
 

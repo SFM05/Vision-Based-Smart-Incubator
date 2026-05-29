@@ -9,6 +9,7 @@ extern "C" {
 
 void start_inference_task(lv_ui *ui);
 void inference_set_interval_seconds(int sec);
+bool inference_is_running(void);
 
 #ifdef __cplusplus
 }

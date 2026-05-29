@@ -94,6 +94,56 @@ data->point.x = (477 - ry) * 479 / 477;
 data->point.y = rx;
 ```
 
+## v5.5.3 → v6.0.1 迁移记录 (2026-05-28)
+
+### IDF 版本
+| 项目 | 旧值 | 新值 |
+|------|------|------|
+| `idf` | 5.5.3 | 6.0.1 |
+| project version | 2.0.0 | 3.0.0 |
+
+### 组件版本更新
+| 组件 | 旧版本 | 新版本 |
+|------|--------|--------|
+| `espressif/esp_ipa` | 0.2.0 | 0.3.0~1 |
+| `espressif/esp_video` | 0.8.0~3 | 0.8.0 |
+
+### `main/idf_component.yml`
+- 新增 `espressif/esp_ipa: '>=0.2.1'` 显式依赖（v6.0.1 中 ISP pipeline 需要）
+
+### `main/CMakeLists.txt`
+- 移除 4 条直接 `INCLUDE_DIRS` 路径（v6.0.1 组件验证机制要求通过 `REQUIRES` 传播）：
+  - `${esp_video_dir}/include` / `${esp_video_dir}/private_include`
+  - `${esp_sccb_dir}/include` / `${esp_sccb_dir}/sccb_i2c/include`
+  - `${esp_cam_sensor_dir}/include` / `${esp_cam_sensor_dir}/sensors/ov5647/include`
+- 原 `esp_video`, `esp_sccb_intf`, `esp_cam_sensor` 的 CMake 路径变量查找代码一并删除
+
+### `sdkconfig.defaults`
+- 移除 4 个在 v6.0.1 LVGL 中已废弃的 Kconfig 符号：
+  - `CONFIG_LV_DEF_REFR_PERIOD=15` → 由 `LV_DEF_REFR_PERIOD` 运行时 API 替代
+  - `CONFIG_LV_OBJ_STYLE_CACHE=y` → 已从 LVGL v8.4 移除
+  - `CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2` → 已从 LVGL v8.4 移除
+  - `CONFIG_LV_OS_FREERTOS=y` → 已从 LVGL v8.4 移除
+
+### Managed 组件补丁（手工应用，`idf.py update-dependencies` 后会覆盖）
+
+> **⚠ 每次 `idf.py update-dependencies` 后需重新补丁**
+
+| 文件 | 修改内容 |
+|------|---------|
+| `espressif__esp_ipa/CMakeLists.txt` | 新增 `PRIV_REQUIRES esp_hal_cam`（`#include "hal/isp_types.h"` 移入 `esp_hal_cam`） |
+| `espressif__esp_video/CMakeLists.txt` | `REQUIRES` 列表新增 `"esp_driver_gpio"`（`#include "driver/gpio.h"` 移入 `esp_driver_gpio`） |
+| `esp_video_isp_device.c` | `CAM_CTLR_COLOR_YUV422` → 4 种 Byte-Order 变体 (`_YVYU`/`_YUYV`/`_UYVY`/`_VYUY`) 均映射到 `ISP_COLOR_YUV422` |
+| | `ISP_AWB_SAMPLE_POINT_BEFORE_CCM` → `ISP_AWB_SAMPLE_POINT_0` |
+| | `ISP_AE_SAMPLE_POINT_AFTER_GAMMA` → `ISP_AE_SAMPLE_POINT_1` |
+| `esp_video_dvp_device.c` | `CAM_CTLR_COLOR_YUV422` → `CAM_CTLR_COLOR_YUV422_UYVY` |
+| `esp_video_csi_device.c` | `csi_video_start()`: ISP 可用时 `output_data_color_type` 设为与 `in_color` 相同（RAW10 直通），让 ISP 处理 RAW→RGB565 转换；`CAM_CTLR_COLOR_YUV422` → `CAM_CTLR_COLOR_YUV422_UYVY` |
+
+### 补丁成因
+- `CAM_CTLR_COLOR_YUV422` 在 v6.0.1 中拆分为 4 个 Byte-Order 明确的变体，旧的无序枚举被移除
+- `isp_types.h` 从 `esp_ipa` 内部头文件移入独立组件 `esp_hal_cam`
+- `driver/gpio.h` 从 `esp_hw_support` 移入新组件 `esp_driver_gpio`
+
 ## sdkconfig.defaults 关键项
 - `CONFIG_LV_COLOR_16_SWAP=y`
 - `CONFIG_LV_FONT_MONTSERRAT_20=y`

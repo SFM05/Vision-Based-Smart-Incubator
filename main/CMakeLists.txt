@@ -1,6 +1,18 @@
+idf_build_get_property(component_targets __COMPONENT_TARGETS)
+if ("___idf_espressif__esp-dl" IN_LIST component_targets)
+   idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
+elseif("___idf_esp-dl" IN_LIST component_targets)
+   idf_component_get_property(espdl_dir esp-dl COMPONENT_DIR)
+endif()
+
+set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
+include(${cmake_dir}/utilities.cmake)
+
 set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
+         "sensors/sensor.c"
+         "sensors/sensor_task.cpp"
          "inference_task/inference_task.cpp"
          "lvgl_port/lvgl_port.cpp"
          "yolo26/yolo_inference.cpp"
@@ -8,7 +20,6 @@ set(srcs "main.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
          "ui/setup_scr_screen_2.c"
-         "ui/setup_scr_screen.c"
          "ui/events_init.c")
 set(requires esp_lcd
              driver
@@ -30,21 +41,7 @@ set(include_dirs "."
                  "ui"
                  "inference_task"
                  "yolo26"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_video/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_video/private_include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_sccb_intf/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_sccb_intf/sccb_i2c/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_cam_sensor/include"
-                 "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_cam_sensor/sensors/ov5647/include")
-
-idf_build_get_property(component_targets __COMPONENT_TARGETS)
-if ("___idf_espressif__esp-dl" IN_LIST component_targets)
-   idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
-elseif("___idf_esp-dl" IN_LIST component_targets)
-   idf_component_get_property(espdl_dir esp-dl COMPONENT_DIR)
-endif()
-set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
-include(${cmake_dir}/utilities.cmake)
+                 "sensors")
 
 idf_component_register(SRCS ${srcs}
                       REQUIRES ${requires}
