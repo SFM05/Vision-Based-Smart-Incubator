@@ -24,6 +24,9 @@ extern "C" {
 #include "esp_video_init.h"
 }
 
+#include "sdkconfig.h"
+#include "iot/wifi.hpp"
+
 static const char *TAG = "main";
 
 constexpr uint16_t W = 480, H = 320;
@@ -175,6 +178,17 @@ extern "C" void app_main(void)
      * 采样间隔 2s，数据通过 LVGL timer 更新到 screen2 的 Temperature/Humidity 标签
      */
     start_sensor_task(&guider_ui);
+
+    /**
+     * @brief WiFi 初始化
+     */
+    {
+        esp_err_t err = IOT::Wifi::get_instance().init_nvs();
+        if (err == ESP_OK) {
+            IOT::Wifi::get_instance().init();
+            IOT::Wifi::get_instance().connect(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
+        }
+    }
 
     /**
      * @brief 启动推理任务

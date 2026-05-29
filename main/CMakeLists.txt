@@ -20,7 +20,8 @@ set(srcs "main.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
          "ui/setup_scr_screen_2.c"
-         "ui/events_init.c")
+         "ui/events_init.c"
+         "iot/wifi.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -34,14 +35,17 @@ set(requires esp_lcd
              lvgl
              esp-dl
              esp_partition
-             yolo26)
+             yolo26
+             esp_wifi_remote
+             esp_hosted)
 set(include_dirs "."
                  "lcd"
                  "lvgl_port"
                  "ui"
                  "inference_task"
                  "yolo26"
-                 "sensors")
+                 "sensors"
+                 "iot")
 
 idf_component_register(SRCS ${srcs}
                       REQUIRES ${requires}
