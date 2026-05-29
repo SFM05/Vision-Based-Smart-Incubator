@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -8,6 +9,10 @@
 
 namespace IOT
 {
+    constexpr int32_t WIFI_CONNECTED_BIT = BIT0;
+    constexpr int32_t WIFI_FAIL_BIT = BIT1;
+    constexpr uint16_t MAX_RETRY_COUNT = 5;
+
     class Wifi
     {
     public:
@@ -24,8 +29,22 @@ namespace IOT
         esp_err_t init();
         esp_err_t connect(const std::string &ssid, const std::string &password);
 
+        const EventBits_t &status() { return m_status; }
+
+        static void wifi_event_handler(void *arg,
+                                       esp_event_base_t event_base,
+                                       int32_t event_id,
+                                       void *event_data);
+
     private:
-        Wifi() = default;
+        EventGroupHandle_t m_wifi_event_group;
+        EventBits_t m_status;
+        uint16_t m_retry_count;
+
+        Wifi() : m_status{WIFI_FAIL_BIT}, m_retry_count{0}
+        {
+            m_wifi_event_group = xEventGroupCreate();
+        }
         ~Wifi() = default;
     };
-} // namespace WIFI
+} // namespace IOT

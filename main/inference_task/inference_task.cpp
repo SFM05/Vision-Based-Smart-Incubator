@@ -45,6 +45,11 @@ static struct {
     bool initialized;
 } s_state = {};
 
+static struct {
+    SemaphoreHandle_t mutex;
+    uint8_t *buf;
+} s_raw = {};
+
 static int s_interval_sec = 10;
 static lv_ui *s_ui = nullptr;
 
@@ -235,7 +240,7 @@ static bool model_init(void)
     s_model = new (std::nothrow) dl::Model("yolo26", fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
     if (!s_model) { ESP_LOGE(TAG, "Failed to create model"); return false; }
     s_model->build(0, dl::MEMORY_MANAGER_GREEDY, false);
-    s_processor = new (std::nothrow) YOLO26(s_model, 32, 0.25f, coco_classes);
+    s_processor = new (std::nothrow) YOLO26(s_model, 60, 0.25f, coco_classes);
     if (!s_processor) { delete s_model; s_model = nullptr; return false; }
     ESP_LOGI(TAG, "YOLO model loaded");
     return true;
@@ -373,6 +378,11 @@ static void process_static_image(uint8_t *crop_buf)
     memcpy(crop_buf, resized.data_const().get(), CROP_SIZE * CROP_SIZE * 3);
     resized.reset();
 
+    if (xSemaphoreTake(s_raw.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(s_raw.buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
+        xSemaphoreGive(s_raw.mutex);
+    }
+
     int detect_count = 0;
     if (s_model && s_processor) {
         s_state.inferring = true;
@@ -485,6 +495,11 @@ static void capture_task_fn(void *arg)
         if (do_inference) {
             crop_center_rgb565_to_rgb888(frame, s_cap.width, s_cap.height,
                                           crop_buf, CROP_SIZE, CROP_SIZE);
+
+            if (xSemaphoreTake(s_raw.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                memcpy(s_raw.buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
+                xSemaphoreGive(s_raw.mutex);
+            }
         }
 
         {
@@ -549,6 +564,12 @@ void start_inference_task(lv_ui *ui)
         return;
     }
 
+    s_raw.mutex = xSemaphoreCreateMutex();
+    s_raw.buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
+    if (!s_raw.buf) {
+        ESP_LOGE(TAG, "OOM for raw snapshot buffer");
+    }
+
     lv_timer_create(ui_update_timer_cb, 100, NULL);
 
     BaseType_t ret = xTaskCreatePinnedToCore(
@@ -571,4 +592,20 @@ void inference_set_interval_seconds(int sec)
     if (sec < 1) sec = 1;
     s_interval_sec = sec;
     ESP_LOGI(TAG, "Interval set to %d seconds", sec);
+}
+
+esp_err_t inference_get_raw_snapshot(uint8_t **out_buf, size_t *out_size)
+{
+    if (!s_raw.buf) return ESP_FAIL;
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
+    if (!buf) return ESP_ERR_NO_MEM;
+    if (xSemaphoreTake(s_raw.mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        heap_caps_free(buf);
+        return ESP_ERR_TIMEOUT;
+    }
+    memcpy(buf, s_raw.buf, CROP_SIZE * CROP_SIZE * 3);
+    xSemaphoreGive(s_raw.mutex);
+    *out_buf = buf;
+    *out_size = CROP_SIZE * CROP_SIZE * 3;
+    return ESP_OK;
 }
