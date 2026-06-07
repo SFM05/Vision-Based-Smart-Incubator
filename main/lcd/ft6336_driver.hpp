@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
 #include "driver/i2c_master.h"
