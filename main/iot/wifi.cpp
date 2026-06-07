@@ -1,17 +1,20 @@
-#include <string.h>
-#include <format>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_wifi.h"
+#include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "nvs_flash.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
+#include <format>
+#include <string.h>
+#include <string>
+#include <time.h>
 
-#include "lwip/err.h"
-#include "lwip/sys.h"
+// #include "lwip/err.h"
+// #include "lwip/sys.h"
 
+#include "nvs_init.hpp"
 #include "wifi.hpp"
 #include "nvs_init.hpp"
 
@@ -46,41 +49,22 @@ namespace IOT
         else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
         {
             std::string msg = std::format("");
+            // ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
             Wifi::get_instance().m_retry_count = 0;
             xEventGroupSetBits(Wifi::get_instance().m_wifi_event_group,
                                WIFI_CONNECTED_BIT);
         }
     }
 
-    esp_err_t Wifi::init_nvs()
-    {
-        esp_err_t err = nvs_flash_init();
-        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-        {
-            ESP_LOGE(TAG, "NVS Flash initialize failed. Erase it to try again.");
-            ESP_ERROR_CHECK(nvs_flash_erase());
-            err = nvs_flash_init();
-        }
-
-        if (err == ESP_OK)
-            ESP_LOGI(TAG, "NVS Flash initialized.");
-        else
-            ESP_LOGE(TAG, "NVS Flash initialize failed.");
-
-        return err;
-    }
-
     esp_err_t Wifi::init()
     {
-        if (!NVS_init::is_initialized)
+        if (!NVS_init::is_initialized) [[unlikely]]
         {
             ESP_LOGE(TAG, "NVS is not initialized.");
             return ESP_FAIL;
         }
-
-        esp_err_t err;
-
-        err = esp_netif_init();
+        
+        esp_err_t err = esp_netif_init();
 
         err = esp_event_loop_create_default();
         esp_netif_create_default_wifi_sta();
@@ -106,8 +90,6 @@ namespace IOT
 
     esp_err_t Wifi::connect(const std::string &ssid, const std::string &password)
     {
-        esp_err_t err;
-
         wifi_config_t wifi_config{};
         memcpy(wifi_config.sta.ssid, ssid.c_str(), ssid.size() + 1);
         memcpy(wifi_config.sta.password, password.c_str(), password.size() + 1);
@@ -115,18 +97,22 @@ namespace IOT
         wifi_config.sta.pmf_cfg.capable = true;
         wifi_config.sta.pmf_cfg.required = false;
 
-        err = esp_wifi_set_mode(WIFI_MODE_STA);
+        esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
         err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         err = esp_wifi_start();
 
         ESP_LOGI(TAG, "wifi_init_sta finished.");
 
+        /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+         * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
         m_status = xEventGroupWaitBits(m_wifi_event_group,
                                        WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                        pdFALSE,
                                        pdFALSE,
                                        portMAX_DELAY);
 
+        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+         * happened. */
         if (m_status & WIFI_CONNECTED_BIT)
             ESP_LOGI(TAG, "Connect success.");
         else if (m_status & WIFI_FAIL_BIT)

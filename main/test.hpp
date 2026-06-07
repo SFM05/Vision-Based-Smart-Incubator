@@ -1,9 +1,5 @@
 #pragma once
 
-void wifi_example();
-
-void wifi_test();
-
-void upload_image_test();
-
-void mqtt_test();
+void iot_test();
+void yolo_test();
+void lcd_test();

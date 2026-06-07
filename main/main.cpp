@@ -1,34 +1,36 @@
-#include <cstring>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
-#include "esp_err.h"
+#include "cJSON.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "esp_err.h"
 #include "esp_lcd_panel_ops.h"
+#include "esp_log.h"
 #include "esp_task_wdt.h"
-#include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <cstring>
 
 #include "dl_image_jpeg.hpp"
 
-#include "st7796_driver.hpp"
 #include "ft6336_driver.hpp"
-#include "lvgl_port/lvgl_port.hpp"
-#include "ui/gui_guider.h"
 #include "inference_task/inference_task.hpp"
+#include "lvgl_port/lvgl_port.hpp"
 #include "sensors/sensor_task.hpp"
+#include "soc/gpio_num.h"
+#include "st7796_driver.hpp"
+#include "ui/gui_guider.h"
 
-extern "C" {
+extern "C"
+{
 #include "esp_sccb_i2c.h"
-#include "ov5647.h"
 #include "esp_video_init.h"
+#include "ov5647.h"
 }
 
-#include "sdkconfig.h"
-#include "iot/wifi.hpp"
-#include "iot/mqtt.hpp"
 #include "iot/iot_utils.hpp"
+#include "iot/mqtt.hpp"
 #include "iot/nvs_init.hpp"
+#include "iot/wifi.hpp"
+#include "sdkconfig.h"
 
 static const char *TAG = "main";
 
@@ -53,19 +55,23 @@ constexpr unsigned int CLK_FREQUENCY = 10e6;
 static void upload_task(void *arg)
 {
     char msg[512];
-    while (true) {
+    while (true)
+    {
         if (xQueueReceive(MQTT::MQTT::get_instance().m_upload_queue, msg,
-                          pdMS_TO_TICKS(60000)) == pdTRUE) {
+                          pdMS_TO_TICKS(60000)) == pdTRUE)
+        {
             ESP_LOGI(TAG, "Upload message received");
 
             cJSON *root = cJSON_Parse(msg);
-            if (!root) {
+            if (!root)
+            {
                 ESP_LOGW(TAG, "Failed to parse upload message");
                 continue;
             }
 
             cJSON *url_item = cJSON_GetObjectItem(root, "url");
-            if (!url_item) {
+            if (!url_item)
+            {
                 ESP_LOGW(TAG, "No URL in upload message");
                 cJSON_Delete(root);
                 continue;
@@ -76,7 +82,8 @@ static void upload_task(void *arg)
 
             uint8_t *rgb_buf;
             size_t rgb_size;
-            if (inference_get_raw_snapshot(&rgb_buf, &rgb_size) != ESP_OK) {
+            if (inference_get_raw_snapshot(&rgb_buf, &rgb_size) != ESP_OK)
+            {
                 ESP_LOGW(TAG, "Failed to get raw snapshot");
                 cJSON_Delete(root);
                 continue;
@@ -86,21 +93,24 @@ static void upload_task(void *arg)
                 .data = rgb_buf,
                 .width = 640,
                 .height = 640,
-                .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888
-            };
+                .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888};
             dl::image::jpeg_img_t jpeg = dl::image::hw_encode_jpeg(img, 85);
             heap_caps_free(rgb_buf);
 
-            if (!jpeg.data) {
+            if (!jpeg.data)
+            {
                 ESP_LOGE(TAG, "JPEG encoding failed");
                 cJSON_Delete(root);
                 continue;
             }
 
             esp_err_t err = IOT::upload_file(url, jpeg.data, jpeg.data_len);
-            if (err == ESP_OK) {
+            if (err == ESP_OK)
+            {
                 ESP_LOGI(TAG, "Upload successful (%zu bytes)", jpeg.data_len);
-            } else {
+            }
+            else
+            {
                 ESP_LOGE(TAG, "Upload failed");
             }
 
@@ -115,7 +125,7 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
-    esp_task_wdt_config_t twdt_cfg = { .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = false };
+    esp_task_wdt_config_t twdt_cfg = {.timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = false};
     esp_task_wdt_init(&twdt_cfg);
 
     LCD::ST7796 panel{SPI2_HOST, W, H};
@@ -134,9 +144,12 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
-    if (terr != ESP_OK) {
+    if (terr != ESP_OK)
+    {
         ESP_LOGW(TAG, "Touch init failed (%s), continuing", esp_err_to_name(terr));
-    } else {
+    }
+    else
+    {
         ESP_LOGI(TAG, "Touch ready");
     }
 
@@ -150,13 +163,17 @@ extern "C" void app_main(void)
     cam_bus.clk_source = I2C_CLK_SRC_DEFAULT;
     cam_bus.flags.enable_internal_pullup = true;
 
-    if (i2c_new_master_bus(&cam_bus, &cam_i2c) != ESP_OK) {
+    if (i2c_new_master_bus(&cam_bus, &cam_i2c) != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to create camera I2C bus");
-    } else {
+    }
+    else
+    {
         ESP_LOGI(TAG, "Camera I2C bus created");
     }
 
-    if (cam_i2c) {
+    if (cam_i2c)
+    {
         esp_video_init_sccb_config_t sccb = {};
         sccb.init_sccb = false;
         sccb.i2c_handle = cam_i2c;
@@ -164,16 +181,19 @@ extern "C" void app_main(void)
 
         esp_video_init_csi_config_t csi = {};
         csi.sccb_config = sccb;
-        csi.reset_pin = -1;
-        csi.pwdn_pin = -1;
+        csi.reset_pin = GPIO_NUM_NC;
+        csi.pwdn_pin = GPIO_NUM_NC;
 
         esp_video_init_config_t video_cfg = {};
         video_cfg.csi = &csi;
 
         esp_err_t cam_err = esp_video_init(&video_cfg);
-        if (cam_err == ESP_OK) {
+        if (cam_err == ESP_OK)
+        {
             ESP_LOGI(TAG, "Camera ready");
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "Camera init failed (%s)", esp_err_to_name(cam_err));
         }
     }
@@ -205,7 +225,8 @@ extern "C" void app_main(void)
     IOT::Wifi::get_instance().init();
     IOT::Wifi::get_instance().connect(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWORD);
 
-    if (IOT::Wifi::get_instance().status() & IOT::WIFI_CONNECTED_BIT) {
+    if (IOT::Wifi::get_instance().status() & IOT::WIFI_CONNECTED_BIT)
+    {
         IOT::ntp_time_sync();
 
         MQTT::MQTT::get_instance().set_mqtt_cfg(
@@ -221,7 +242,8 @@ extern "C" void app_main(void)
     start_inference_task(&guider_ui);
     ESP_LOGI(TAG, "Inference task started");
 
-    while (true) {
+    while (true)
+    {
         LvglPort::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
