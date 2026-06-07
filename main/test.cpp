@@ -7,13 +7,18 @@
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 #include "spi_flash_mmap.h"
+#include <cstdio>
 #include <cstring>
 #include <format>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 #include <string>
 
 #include "iot_utils.hpp"
 #include "mqtt.hpp"
 #include "nvs_init.hpp"
+#include "sdcard.hpp"
 #include "wifi.hpp"
 
 #include "test.hpp"
@@ -25,6 +30,32 @@ const char *password = CONFIG_IOT_WIFI_PASSWORD;
 const char *mqtt_server = CONFIG_IOT_MQTT_SERVER;
 const char *mqtt_username = CONFIG_IOT_MQTT_USERNAME;
 const char *mqtt_password = CONFIG_IOT_MQTT_PASSWORD;
+
+void sdcard_test()
+{
+    esp_err_t err = sdcard::SDcard::instance().init(GPIO_NUM_43,  // CLK
+                                                    GPIO_NUM_44,  // CMD(MOSI)
+                                                    GPIO_NUM_39,  // D0(MISO)
+                                                    GPIO_NUM_40,  // D1
+                                                    GPIO_NUM_41,  // D2
+                                                    GPIO_NUM_42); // D3(CS)
+    if (err != ESP_OK) [[unlikely]]
+    {
+        ESP_LOGE(TAG, "SD card init failed.");
+        return;
+    }
+    ESP_LOGI(TAG, "SD card init.");
+
+    std::ifstream is("/sdcard/config.json");
+    if (!is.is_open())
+    {
+        ESP_LOGE(TAG, "Cannot open file.");
+        return;
+    }
+    std::stringstream buffer;
+    buffer << is.rdbuf();
+    std::cout << buffer.str() << '\n';
+}
 
 void wifi_example()
 {

@@ -10,6 +10,7 @@ set(srcs "main.cpp"
          "iot/wifi.cpp"
          "iot/iot_utils.cpp"
          "iot/mqtt.cpp"
+         "sdcard/sdcard.cpp"
          "test.cpp"
          )
 set(requires esp_lcd
@@ -28,6 +29,7 @@ set(requires esp_lcd
              esp_http_client
              nvs_flash
             #  freertos
+             fatfs
              esp-dl
              esp_partition
              yolo26)
@@ -36,7 +38,8 @@ set(include_dirs "."
                  "lcd"
                  "pipeline"
                  "yolo26"
-                 "iot")
+                 "iot"
+                 "sdcard")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

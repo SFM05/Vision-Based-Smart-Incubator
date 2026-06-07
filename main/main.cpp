@@ -121,9 +121,7 @@ static void touch_task(void *argv)
 
 extern "C" void app_main(void)
 {
-#ifdef WIFI_TEST
-    wifi_example();
-#endif WIFI_TEST
+    sdcard_test();
 
 #ifdef CAMERA_TEST
     // /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
