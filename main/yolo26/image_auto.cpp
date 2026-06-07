@@ -53,10 +53,6 @@ namespace Image
     {
         return m_height;
     }
-    dl::image::pix_type_t ImageAuto::pix_type() const
-    {
-        return m_pix_type;
-    }
     std::shared_ptr<const uint8_t[]> ImageAuto::data_const() const
     {
         return m_data;
@@ -99,4 +95,4 @@ namespace Image
         m_data.reset();
         m_width=m_height=0;
     }
-} // namespace Image
+} /* namespace Image */
