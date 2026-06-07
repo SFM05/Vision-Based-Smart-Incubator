@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "lvgl.h"
+#include "iot/iot_utils.hpp"
 
 static const char *TAG = "SensorTask";
 
@@ -32,6 +33,8 @@ static void sensor_read_task_fn(void *arg)
                 s_state.has_new_data = true;
                 xSemaphoreGive(s_state.mutex);
             }
+            IOT::report_env(data.temperature_c, data.humidity_rh, data.eco2_ppm);
+
             ESP_LOGI(TAG, "T=%.1fC RH=%.1f%% CO2=%dppm TVOC=%dppb",
                      (double)data.temperature_c, (double)data.humidity_rh,
                      data.eco2_ppm, data.tvoc_ppb);
