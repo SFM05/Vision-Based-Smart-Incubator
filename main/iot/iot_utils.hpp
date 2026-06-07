@@ -10,5 +10,5 @@ namespace IOT
                           const void *data,       // JPEG 数据指针
                           size_t len);                // 数据长度
 
-    esp_err_t report_env(float temp,double hum);
+    esp_err_t report_env(float temp, double hum, uint16_t co2);
 }

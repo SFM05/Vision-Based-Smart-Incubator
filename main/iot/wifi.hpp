@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_event.h"
 #include "freertos/event_groups.h"
@@ -52,4 +53,4 @@ namespace IOT
         }
         ~Wifi() = default;
     };
-} // namespace WIFI
+} // namespace IOT

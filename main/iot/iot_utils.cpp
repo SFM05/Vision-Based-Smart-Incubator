@@ -126,11 +126,15 @@ namespace IOT
         return (status_code == 200 || status_code == 201) ? ESP_OK : ESP_FAIL;
     }
 
-    esp_err_t report_env(float temp, double hum)
+    esp_err_t report_env(float temp, double hum, uint16_t co2)
     {
-        time_t now = time(NULL); // 秒级时间戳
+        if (!MQTT::MQTT::get_instance().mqtt_handle()) {
+            return ESP_FAIL;
+        }
+
+        time_t now = time(NULL);
         struct tm tm_info;
-        localtime_r(&now, &tm_info); // 转本地时间
+        localtime_r(&now, &tm_info);
         char time[32];
         strftime(time, sizeof(time), "%Y-%m-%d %H:%M:%S", &tm_info);
         if (time[0]!='2')
@@ -140,6 +144,7 @@ namespace IOT
         cJSON_AddStringToObject(root, "timestamp", time);
         cJSON_AddNumberToObject(root, "temp", temp);
         cJSON_AddNumberToObject(root, "hum", hum);
+        cJSON_AddNumberToObject(root, "co2", co2);
         char *json_str = cJSON_Print(root);
 
         uint8_t mac[6];
@@ -151,10 +156,10 @@ namespace IOT
                                          1,
                                          0);
 
-        delete json_str;
+        cJSON_free(json_str);
         cJSON_Delete(root);
 
-        if (id != 0) [[unlikely]]
+        if (id < 0) [[unlikely]]
         {
             return ESP_FAIL;
         }

@@ -1,41 +1,49 @@
 set(srcs "main.cpp"
-         "camera/camera_driver.c"
-         # "lcd/lcd_driver.c"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
-         "pipeline/video_pipeline.c"
+         "sensors/sensor.c"
+         "sensors/sensor_task.cpp"
+         "inference_task/inference_task.cpp"
+         "lvgl_port/lvgl_port.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
-         "iot/nvs_init.cpp"
+         "ui/gui_guider.c"
+         "ui/setup_scr_screen_1.c"
+         "ui/setup_scr_screen_2.c"
+         "ui/events_init.c"
          "iot/wifi.cpp"
-         "iot/iot_utils.cpp"
          "iot/mqtt.cpp"
-         "test.cpp"
-         )
+         "iot/iot_utils.cpp"
+         "iot/nvs_init.cpp")
 set(requires esp_lcd
              driver
              esp_video
-            #  esp_lcd_ek79007
              esp_driver_spi
              esp_driver_i2c
-             unity
              esp_lcd_st7796
              esp_lcd_touch_ft5x06
+             espressif__esp_sccb_intf
+             espressif__esp_cam_sensor
+             freertos
+             lvgl
+             esp-dl
+             esp_partition
+             yolo26
              esp_wifi
              esp_wifi_remote
              esp_hosted
              lwip
-             esp_http_client
              nvs_flash
-            #  freertos
-             esp-dl
-             esp_partition
-             yolo26)
+             mqtt
+             esp_http_client
+             cjson)
 set(include_dirs "."
-                 "camera"
                  "lcd"
-                 "pipeline"
+                 "lvgl_port"
+                 "ui"
+                 "inference_task"
                  "yolo26"
+                 "sensors"
                  "iot")
 
 # This is added before the registery for esp-dl
@@ -45,6 +53,7 @@ if ("___idf_espressif__esp-dl" IN_LIST component_targets)
 elseif("___idf_esp-dl" IN_LIST component_targets)
    idf_component_get_property(espdl_dir esp-dl COMPONENT_DIR)
 endif()
+
 set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
 include(${cmake_dir}/utilities.cmake)
 
@@ -52,8 +61,6 @@ idf_component_register(SRCS ${srcs}
                       REQUIRES ${requires}
                       INCLUDE_DIRS ${include_dirs})
 
-
-# This is added after the registery for esp-dl
 set(model ${CMAKE_CURRENT_SOURCE_DIR}/yolo26/yolo26n_640.espdl)
 esptool_py_flash_to_partition(flash "yolo26" "${model}")
 

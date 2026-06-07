@@ -82,4 +82,4 @@ namespace LCD
          */
         esp_lcd_touch_handle_t touch_handle() const;
     };
-} // namespace LCD
+} /* namespace LCD */
