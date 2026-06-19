@@ -7,11 +7,14 @@
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 #include "spi_flash_mmap.h"
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -31,6 +34,10 @@ const char *mqtt_server = CONFIG_IOT_MQTT_SERVER;
 const char *mqtt_username = CONFIG_IOT_MQTT_USERNAME;
 const char *mqtt_password = CONFIG_IOT_MQTT_PASSWORD;
 
+auto cjson_deleter = [](cJSON *ptr)
+{ cJSON_Delete(ptr); };
+using cJsonDeleterType = std::function<void(cJSON *)>;
+
 void sdcard_test()
 {
     esp_err_t err = sdcard::SDcard::instance().init(GPIO_NUM_43,  // CLK
@@ -47,14 +54,24 @@ void sdcard_test()
     ESP_LOGI(TAG, "SD card init.");
 
     std::ifstream is("/sdcard/config.json");
-    if (!is.is_open())
+    if (!is.is_open()) [[unlikely]]
     {
         ESP_LOGE(TAG, "Cannot open file.");
         return;
     }
     std::stringstream buffer;
     buffer << is.rdbuf();
-    std::cout << buffer.str() << '\n';
+
+    auto root = std::unique_ptr<cJSON, cJsonDeleterType>{cJSON_Parse(buffer.str().c_str()), cjson_deleter};
+    if (root == nullptr) [[unlikely]]
+    {
+        ESP_LOGE(TAG, "Parse config failed at %s", cJSON_GetErrorPtr());
+        return;
+    }
+    const char *wifi_ssid = cJSON_GetObjectItem(root.get(), "ssid")->valuestring;
+    const char *wifi_password = cJSON_GetObjectItem(root.get(), "password")->valuestring;
+    std::cout << std::format("SSID: {:>15}\n", wifi_ssid);
+    std::cout << std::format("Password: {:>15}\n", wifi_password);
 }
 
 void wifi_example()
