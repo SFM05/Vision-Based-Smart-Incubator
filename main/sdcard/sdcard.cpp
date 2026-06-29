@@ -34,7 +34,13 @@ namespace sdcard
         host.slot = SDMMC_HOST_SLOT_0;
         host.unaligned_multi_block_rw_max_chunk_size = 8;
         sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-        slot_config.width = 4; // 4 线模式；设为 1 则用 1 线模式
+        slot_config.clk=clk;
+        slot_config.cmd=cmd;
+        slot_config.d0=d0;
+        slot_config.d1=d1;
+        slot_config.d2=d2;
+        slot_config.d3=d3;
+        // slot_config.width = 4; // 4 线模式；设为 1 则用 1 线模式
 
         err = esp_vfs_fat_sdmmc_mount("/sdcard",
                                       &host,

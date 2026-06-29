@@ -40,6 +40,12 @@ using cJsonDeleterType = std::function<void(cJSON *)>;
 
 void sdcard_test()
 {
+    NVS_init::nvs_init();
+    ESP_LOGI(TAG, "NVS initailized.");
+
+    IOT::Wifi::get_instance().init();
+    ESP_LOGI(TAG, "Wifi initailized.");
+
     esp_err_t err = sdcard::SDcard::instance().init(GPIO_NUM_43,  // CLK
                                                     GPIO_NUM_44,  // CMD(MOSI)
                                                     GPIO_NUM_39,  // D0(MISO)
@@ -70,8 +76,8 @@ void sdcard_test()
     }
     const char *wifi_ssid = cJSON_GetObjectItem(root.get(), "ssid")->valuestring;
     const char *wifi_password = cJSON_GetObjectItem(root.get(), "password")->valuestring;
-    std::cout << std::format("SSID: {:>15}\n", wifi_ssid);
-    std::cout << std::format("Password: {:>15}\n", wifi_password);
+    std::cout << std::format("{:>10} {:>25}\n", "SSID", wifi_ssid);
+    std::cout << std::format("{:>10} {:>25}\n", "Password", wifi_password);
 }
 
 void wifi_example()

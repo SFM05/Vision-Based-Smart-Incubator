@@ -1,12 +1,14 @@
-#include <iostream>
-#include <cstring>
-#include <utility>
-#include <format>
+#include "esp_err.h"
+#include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_log.h"
-#include "esp_err.h"
+#include <cstring>
+#include <format>
+#include <iostream>
+#include <utility>
 
+// #include "esp_flash_dispatcher.h"
 #include "driver/gpio.h"
 
 #include "esp_partition.h"
@@ -16,15 +18,16 @@
 #include "esp_heap_task_info.h"
 
 // #include "lcd_driver.h"
-#include "st7796_driver.hpp"
-#include "ft6336_driver.hpp"
 #include "camera_driver.h"
+#include "ft6336_driver.hpp"
+#include "st7796_driver.hpp"
 #include "video_pipeline.h"
 
-#include "yolo_inference.hpp"
 #include "yolo26.hpp"
+#include "yolo_inference.hpp"
 
-#include "test.hpp"
+#include "esp_hosted.h"
+// #include "test.hpp"
 
 static const char *TAG = "main";
 
@@ -48,7 +51,7 @@ constexpr unsigned int CLK_FREQUENCY = 40e6; // 最大80MHz
 #define WIFI_TEST
 // #define TOUCH_LCD_TEST
 // #define CAMERA_TEST
-// #define YOLO_TEST // 启用YOLO测试
+#define YOLO_TEST // 启用YOLO测试
 
 using touch_task_param_t = std::pair<esp_lcd_panel_handle_t, esp_lcd_touch_handle_t>;
 
@@ -121,7 +124,16 @@ static void touch_task(void *argv)
 
 extern "C" void app_main(void)
 {
-    sdcard_test();
+
+    // const esp_flash_dispatcher_config_t cfg = {
+    //     .task_stack_size = 2048,
+    //     .task_priority = configMAX_PRIORITIES - 1,
+    //     .task_core_id = tskNO_AFFINITY,
+    //     .queue_size = 1, // 已废弃，保留兼容性
+    // };
+    // ESP_ERROR_CHECK(esp_flash_dispatcher_init(&cfg));
+    // sdcard_test();
+    // std::cout<<uxTaskGetStackHighWaterMark(nullptr)<<'\n';
 
 #ifdef CAMERA_TEST
     // /* ---- 模块 2/3: 初始化摄像头传感器 ---- */
@@ -269,6 +281,7 @@ extern "C" void app_main(void)
 #endif
 
 #ifdef YOLO_TEST
+
     // 从分区表中读取图像的位置
     const esp_partition_t *img_partition = esp_partition_find_first(
         ESP_PARTITION_TYPE_ANY,
@@ -339,12 +352,12 @@ extern "C" void app_main(void)
     auto results = yolo_inference(model, img_resized, processor);
     vTaskDelay(100);
 
-    ESP_LOGI(TAG, "%s", std::format("Detected {} colonies", results.size()).c_str());
+    std::cout<<std::format("Detected {} colonies\n", results.size()).c_str();
+    for (const auto &item: results){
+        std::cout<<std::format("{:>5} {:>5} {:>5} {:>5} {:>5}\n",item.box[0],item.box[1],item.box[2],item.box[3],item.score);
+    }
 
     delete model;
 
-    heap_caps_check_integrity_all(true);
-    TaskHandle_t xHandle = xTaskGetCurrentTaskHandle();
-    heap_caps_print_single_task_stat_overview(NULL, xHandle);
 #endif
 }

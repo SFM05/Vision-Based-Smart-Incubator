@@ -7,11 +7,11 @@ set(srcs "main.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
          "iot/nvs_init.cpp"
-         "iot/wifi.cpp"
-         "iot/iot_utils.cpp"
-         "iot/mqtt.cpp"
+         # "iot/wifi.cpp"
+         # "iot/iot_utils.cpp"
+         # "iot/mqtt.cpp"
          "sdcard/sdcard.cpp"
-         "test.cpp"
+         # "test.cpp"
          )
 set(requires esp_lcd
              driver
