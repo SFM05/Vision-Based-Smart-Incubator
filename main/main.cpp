@@ -32,6 +32,9 @@ extern "C"
 #include "iot/wifi.hpp"
 #include "sdkconfig.h"
 
+#define TEST
+#include "test.hpp"
+
 static const char *TAG = "main";
 
 constexpr uint16_t W = 480, H = 320;
@@ -122,6 +125,11 @@ static void upload_task(void *arg)
 
 extern "C" void app_main(void)
 {
+#ifdef TEST
+    iot_test();
+#endif
+
+#ifndef TEST
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
@@ -247,4 +255,5 @@ extern "C" void app_main(void)
         LvglPort::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+#endif
 }

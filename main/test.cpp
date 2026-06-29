@@ -5,14 +5,15 @@
 #include "esp_mac.h"
 #include "esp_partition.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/projdefs.h"
+#include "freertos/task.h"
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 #include "spi_flash_mmap.h"
-#include <cstring>
 #include <cstdint>
+#include <cstring>
 #include <format>
+#include <iostream>
 #include <string>
 
 #include "iot_utils.hpp"
@@ -25,6 +26,9 @@
 
 #include "ft6336_driver.hpp"
 #include "st7796_driver.hpp"
+
+#include "eth.hpp"
+#include "ping/ping_sock.h"
 
 #include "test.hpp"
 
@@ -56,14 +60,9 @@ constexpr unsigned int CLK_FREQUENCY = 40e6; // 最大80MHz
 // IoT functions
 void iot_test()
 {
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
-
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
-
-    IOT::Wifi::get_instance().connect(ssid, password);
-    ESP_LOGI(TAG, "Wifi connected.");
+    ETH::Ethernet::instance().init();
+    ESP_LOGI(TAG, "Ethernet connected.");
+    vTaskDelay(1000);
 
     // IOT::ntp_time_sync();
 
@@ -72,7 +71,7 @@ void iot_test()
                                             mqtt_password);
     MQTT::MQTT::get_instance().mqtt_init();
 
-    IOT::report_env(36.5, 50.0);
+    IOT::report_env(36.5, 50.0, 0);
 
     // 从分区表中读取图像的位置
     const esp_partition_t *img_partition = esp_partition_find_first(
@@ -224,8 +223,9 @@ void yolo_test()
     int bottom = std::min(int(img.height()), center_y + img_size / 2);
 
     // 裁剪图像的中心部分
-    auto img_cropped = crop(img, {left, top, right, bottom});
+    // auto img_cropped = crop(img, {left, top, right, bottom});
     // auto img_cropped = crop(img, 0, 0, 640, 640);
+    auto img_cropped = img;
     img.reset();
     ESP_LOGI(TAG, "Image cropped");
 
@@ -254,7 +254,11 @@ void yolo_test()
     auto results = yolo_inference(model, img_resized, processor);
     vTaskDelay(100);
 
-    ESP_LOGI(TAG, "%s", std::format("Detected {} colonies", results.size()).c_str());
+    std::cout << std::format("Detected {} colonies\n", results.size()).c_str();
+    for (const auto &item : results)
+    {
+        std::cout << std::format("{:>5}{:>5}{:>5}{:>5}{:>8.4f}\n", item.box[0], item.box[1], item.box[2], item.box[3], item.score);
+    }
 
     delete model;
 }

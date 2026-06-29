@@ -12,7 +12,6 @@ dependencies:
   #   # `public` flag doesn't have an effect dependencies of the `main` component.
   #   # All dependencies of `main` are public by default.
   #   public: true
-  espressif/esp_lcd_ek79007: ^2.0.2
   espressif/esp_video: ^2.2.0
   espressif/esp_sccb_intf: ^0.0.8
   espressif/esp-dl: ^3.3.2
@@ -21,7 +20,6 @@ dependencies:
   espressif/esp_lcd_touch_ft5x06: ^1.1.0~1
   lvgl/lvgl: ^8.4.0
   espressif/esp_ipa: '>=0.2.1'
-  espressif/esp_wifi_remote: ^1.6.0
-  espressif/esp_hosted: =2.12.6
   espressif/mqtt: ^1.0.0
   espressif/cjson: ^1.7.19~2
+  espressif/ip101: ^1.0.0

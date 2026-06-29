@@ -14,7 +14,8 @@
 #include "freertos/projdefs.h"
 #include "mqtt.hpp"
 #include "mqtt_client.h"
-#include "wifi.hpp"
+// #include "wifi.hpp"
+#include "eth.hpp"
 
 #include "iot_utils.hpp"
 
@@ -24,9 +25,9 @@ namespace IOT
 {
     esp_err_t ntp_time_sync()
     {
-        if (Wifi::get_instance().status() != WIFI_CONNECTED_BIT) [[unlikely]]
+        if (!ETH::Ethernet::instance().status()) [[unlikely]]
         {
-            ESP_LOGE(TAG, "Wifi isn't connected");
+            ESP_LOGE(TAG, "Ethernet not connected.");
             return ESP_FAIL;
         }
 
@@ -71,9 +72,9 @@ namespace IOT
                           const void *data,
                           size_t len)
     {
-        if (Wifi::get_instance().status() != WIFI_CONNECTED_BIT) [[unlikely]]
+        if (!ETH::Ethernet::instance().status()) [[unlikely]]
         {
-            ESP_LOGE(TAG, "Wifi ism't connected.");
+            ESP_LOGE(TAG, "Ethernet not connected.");
             return ESP_FAIL;
         }
 
