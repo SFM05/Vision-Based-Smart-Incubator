@@ -14,7 +14,8 @@ set(srcs "main.cpp"
          "iot/wifi.cpp"
          "iot/mqtt.cpp"
          "iot/iot_utils.cpp"
-         "iot/nvs_init.cpp")
+         "iot/nvs_init.cpp"
+         "tcd/tcd.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -44,7 +45,8 @@ set(include_dirs "."
                  "inference_task"
                  "yolo26"
                  "sensors"
-                 "iot")
+                 "iot"
+                 "tcd")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)
