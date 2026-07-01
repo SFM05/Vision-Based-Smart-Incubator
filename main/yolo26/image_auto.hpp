@@ -41,7 +41,6 @@ namespace Image
 
         uint16_t width() const;
         uint16_t height() const;
-        dl::image::pix_type_t pix_type() const;
         /**
          * @brief 获取指向图片的常量指针
          * 
@@ -80,4 +79,4 @@ namespace Image
          */
         void reset();
     };
-} // namespace Image
+} /* namespace Image */

@@ -10,8 +10,6 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
-#include "unity.h"
-#include "unity_test_runner.h"
 
 #include "esp_lcd_st7796.h"
 #include "st7796_driver.hpp"
@@ -60,7 +58,7 @@ namespace LCD
     void ST7796::set_panel_cfg(gpio_num_t reset_gpio_num)
     {
         m_panel_cfg.reset_gpio_num = reset_gpio_num;
-        m_panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        m_panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         m_panel_cfg.bits_per_pixel = 16;
     }
 
@@ -98,7 +96,7 @@ namespace LCD
         err = esp_lcd_new_panel_st7796(m_io_handle, &m_panel_cfg, &m_panel_handle);
         if (err != ESP_OK) [[unlikely]]
         {
-            ESP_LOGE("TAG", "Create LCD panel failed.");
+            ESP_LOGE(TAG, "Create LCD panel failed.");
             return err;
         }
 
@@ -109,12 +107,17 @@ namespace LCD
             return err;
         }
 
+        vTaskDelay(pdMS_TO_TICKS(50));
+
         err = esp_lcd_panel_init(m_panel_handle);
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Initialize LCD panel failed.");
             return err;
         }
+
+        uint8_t madctl = m_mirror.to_madctl();
+        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
 
         err = esp_lcd_panel_disp_on_off(m_panel_handle, true);
         if (err != ESP_OK) [[unlikely]]
@@ -134,4 +137,11 @@ namespace LCD
         return m_panel_handle;
     }
 
-} // namespace LCD
+    void ST7796::set_mirror(const MirrorConfig& cfg)
+    {
+        m_mirror = cfg;
+        uint8_t madctl = m_mirror.to_madctl();
+        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
+    }
+
+} /* namespace LCD */

@@ -14,6 +14,16 @@ namespace MQTT
 {
     esp_err_t MQTT::mqtt_init()
     {
+        esp_err_t err = esp_event_loop_create_default();
+        if (err == ESP_ERR_INVALID_STATE)
+        {
+            ESP_LOGW(TAG, "Event loop already exists, continuing.");
+        }
+        else if (err != ESP_OK) [[unlikely]]
+        {
+            ESP_LOGE(TAG, "Event loop create failed.");
+            return err;
+        }
 
         m_mqtt_handle = esp_mqtt_client_init(&m_mqtt_cfg);
         if (m_mqtt_handle == nullptr) [[unlikely]]
@@ -22,10 +32,10 @@ namespace MQTT
             return ESP_FAIL;
         }
 
-        esp_err_t err = esp_mqtt_client_register_event(m_mqtt_handle,
-                                                       esp_mqtt_event_id_t::MQTT_EVENT_ANY,
-                                                       mqtt_event_handler,
-                                                       &m_upload_queue);
+        err = esp_mqtt_client_register_event(m_mqtt_handle,
+                                             esp_mqtt_event_id_t::MQTT_EVENT_ANY,
+                                             mqtt_event_handler,
+                                             &m_upload_queue);
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Event register failed.");
@@ -36,18 +46,6 @@ namespace MQTT
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Start MQTT client failed.");
-            return err;
-        }
-
-        err = esp_event_loop_create_default();
-        if (err == ESP_ERR_INVALID_STATE) [[unlikely]]
-        {
-            ESP_LOGW(TAG, "Event loop has been created before.");
-            return ESP_ERR_INVALID_STATE;
-        }
-        if (err != ESP_OK) [[unlikely]]
-        {
-            ESP_LOGE(TAG, "Event loop create failed.");
             return err;
         }
 

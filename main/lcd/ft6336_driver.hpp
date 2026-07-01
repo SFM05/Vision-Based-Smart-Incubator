@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
 #include "driver/i2c_master.h"
@@ -80,4 +82,4 @@ namespace LCD
          */
         esp_lcd_touch_handle_t touch_handle() const;
     };
-} // namespace LCD
+} /* namespace LCD */

@@ -1,28 +1,33 @@
 #include "cJSON.h"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_partition.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/projdefs.h"
+#include "freertos/task.h"
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 #include "spi_flash_mmap.h"
 #include <cstddef>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <format>
-#include <fstream>
-#include <functional>
 #include <iostream>
-#include <memory>
-#include <sstream>
 #include <string>
 
 #include "iot_utils.hpp"
 #include "mqtt.hpp"
-#include "nvs_init.hpp"
-#include "sdcard.hpp"
-#include "wifi.hpp"
+
+#include "yolo26.hpp"
+#include "yolo_inference.hpp"
+
+#include "ft6336_driver.hpp"
+#include "st7796_driver.hpp"
+
+#include "eth.hpp"
 
 #include "test.hpp"
 
@@ -34,62 +39,29 @@ const char *mqtt_server = CONFIG_IOT_MQTT_SERVER;
 const char *mqtt_username = CONFIG_IOT_MQTT_USERNAME;
 const char *mqtt_password = CONFIG_IOT_MQTT_PASSWORD;
 
-auto cjson_deleter = [](cJSON *ptr)
-{ cJSON_Delete(ptr); };
-using cJsonDeleterType = std::function<void(cJSON *)>;
+// LCD参数
+constexpr uint16_t HORIZONRAL_RES = 480;
+constexpr uint16_t VERTICAL_RES = 320;
 
-void sdcard_test()
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_54;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_19;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_18; // LCD_RS (D/C)
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_16;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_15;
+
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_14;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_6;
+constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
+constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
+
+constexpr unsigned int CLK_FREQUENCY = 40e6; // 最大80MHz
+
+// IoT functions
+void iot_test()
 {
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
-
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
-
-    esp_err_t err = sdcard::SDcard::instance().init(GPIO_NUM_43,  // CLK
-                                                    GPIO_NUM_44,  // CMD(MOSI)
-                                                    GPIO_NUM_39,  // D0(MISO)
-                                                    GPIO_NUM_40,  // D1
-                                                    GPIO_NUM_41,  // D2
-                                                    GPIO_NUM_42); // D3(CS)
-    if (err != ESP_OK) [[unlikely]]
-    {
-        ESP_LOGE(TAG, "SD card init failed.");
-        return;
-    }
-    ESP_LOGI(TAG, "SD card init.");
-
-    std::ifstream is("/sdcard/config.json");
-    if (!is.is_open()) [[unlikely]]
-    {
-        ESP_LOGE(TAG, "Cannot open file.");
-        return;
-    }
-    std::stringstream buffer;
-    buffer << is.rdbuf();
-
-    auto root = std::unique_ptr<cJSON, cJsonDeleterType>{cJSON_Parse(buffer.str().c_str()), cjson_deleter};
-    if (root == nullptr) [[unlikely]]
-    {
-        ESP_LOGE(TAG, "Parse config failed at %s", cJSON_GetErrorPtr());
-        return;
-    }
-    const char *wifi_ssid = cJSON_GetObjectItem(root.get(), "ssid")->valuestring;
-    const char *wifi_password = cJSON_GetObjectItem(root.get(), "password")->valuestring;
-    std::cout << std::format("{:>10} {:>25}\n", "SSID", wifi_ssid);
-    std::cout << std::format("{:>10} {:>25}\n", "Password", wifi_password);
-}
-
-void wifi_example()
-{
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
-
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
-
-    IOT::Wifi::get_instance().connect(ssid, password);
-    ESP_LOGI(TAG, "Wifi connected.");
+    ETH::Ethernet::instance().init();
+    ESP_LOGI(TAG, "Ethernet connected.");
+    vTaskDelay(1000);
 
     // IOT::ntp_time_sync();
 
@@ -98,7 +70,7 @@ void wifi_example()
                                             mqtt_password);
     MQTT::MQTT::get_instance().mqtt_init();
 
-    IOT::report_env(36.5, 50.0);
+    IOT::report_env(36.5, 50.0, 0);
 
     // 从分区表中读取图像的位置
     const esp_partition_t *img_partition = esp_partition_find_first(
@@ -208,31 +180,8 @@ void wifi_example()
     spi_flash_munmap(img_handle); // 释放映射
 }
 
-void wifi_test()
+void yolo_test()
 {
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
-
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
-
-    IOT::Wifi::get_instance().connect(ssid, password);
-    ESP_LOGI(TAG, "Wifi connected.");
-
-    IOT::ntp_time_sync();
-}
-
-void upload_image_test()
-{
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
-
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
-
-    IOT::Wifi::get_instance().connect(ssid, password);
-    ESP_LOGI(TAG, "Wifi connected.");
-
     // 从分区表中读取图像的位置
     const esp_partition_t *img_partition = esp_partition_find_first(
         ESP_PARTITION_TYPE_ANY,
@@ -259,32 +208,202 @@ void upload_image_test()
     }
     ESP_LOGI(TAG, "Image mapped to data memory");
 
-    const char *url = "";
-    IOT::upload_file(url, img_ptr, IMAGE_SIZE);
-
+    // 解码
+    auto img = decode_jpeg((uint8_t *)img_ptr, IMAGE_SIZE);
     spi_flash_munmap(img_handle); // 释放映射
+    ESP_LOGI(TAG, "Image decoded");
+
+    // int center_x = img.width() / 2;
+    // int center_y = img.height() / 2;
+    // int img_size = std::max(img.width(), img.height());
+    // int left = std::max(0, center_x - img_size / 2);
+    // int right = std::min(int(img.width()), center_x + img_size / 2);
+    // int top = std::max(0, center_y - img_size / 2);
+    // int bottom = std::min(int(img.height()), center_y + img_size / 2);
+
+    // 裁剪图像的中心部分
+    // auto img_cropped = crop(img, {left, top, right, bottom});
+    // auto img_cropped = crop(img, 0, 0, 640, 640);
+    auto img_cropped = img;
+    img.reset();
+    ESP_LOGI(TAG, "Image cropped");
+
+    // 缩放至640*640
+    auto img_resized = resize(img_cropped, 640, 640, true);
+    // auto img_resized = img_cropped;
+    // auto img_resized = resize(img_cropped, 640, 320,
+    //                           {0, 0, 160, 160});
+    img_cropped.reset();
+    ESP_LOGI(TAG, "Image resized");
+
+    // 加载模型
+    dl::Model *model = new dl::Model("yolo26",
+                                     fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
+
+    ESP_LOGI(TAG, "Model loaded");
+
+    // 初始化处理器
+    const char *names[] = {"Colony"};
+    constexpr int TARGET_K = 128;
+    constexpr float CONF_THRESH = 0.25f;
+    YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
+    vTaskDelay(100);
+
+    // 推理
+    auto results = yolo_inference(model, img_resized, processor);
+    vTaskDelay(100);
+
+    std::cout << std::format("Detected {} colonies\n", results.size()).c_str();
+    for (const auto &item : results)
+    {
+        std::cout << std::format("{:>5}{:>5}{:>5}{:>5}{:>8.4f}\n", item.box[0], item.box[1], item.box[2], item.box[3], item.score);
+    }
+
+    delete model;
 }
 
-void mqtt_test()
+using touch_task_param_t = std::pair<esp_lcd_panel_handle_t, esp_lcd_touch_handle_t>;
+
+static SemaphoreHandle_t touch_sem; // 触摸二值信号量
+
+// 触摸中断回调 — 在 ISR 中运行，必须 IRAM_ATTR，做最少的事
+static void IRAM_ATTR my_touch_isr_cb(esp_lcd_touch_handle_t touch_handle)
 {
-    NVS_init::nvs_init();
-    ESP_LOGI(TAG, "NVS initailized.");
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(touch_sem, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken)
+    {
+        portYIELD_FROM_ISR();
+    }
+}
 
-    IOT::Wifi::get_instance().init();
-    ESP_LOGI(TAG, "Wifi initailized.");
+// 触摸处理任务
+static void touch_task(void *argv)
+{
+    touch_task_param_t *args = static_cast<touch_task_param_t *>(argv);
+    auto panel_handle = args->first;
+    auto touch_handle = args->second;
 
-    IOT::Wifi::get_instance().connect(ssid, password);
-    ESP_LOGI(TAG, "Wifi connected.");
+    uint16_t *buffer_white = (uint16_t *)heap_caps_malloc(50 * 50 * sizeof(uint16_t), MALLOC_CAP_DMA);
+    uint16_t *buffer_black = (uint16_t *)heap_caps_malloc(50 * 50 * sizeof(uint16_t), MALLOC_CAP_DMA);
+    memset(buffer_white, 0xFFFF, 50 * 50 * sizeof(uint16_t));
+    memset(buffer_black, 0, 50 * 50 * sizeof(uint16_t));
 
-    MQTT::MQTT::get_instance().set_mqtt_cfg(mqtt_server,
-                                            mqtt_username,
-                                            mqtt_password);
-    MQTT::MQTT::get_instance().mqtt_init();
+    uint16_t x = HORIZONRAL_RES / 2;
+    uint16_t y = VERTICAL_RES / 2;
+    uint16_t strength;
+    while (true)
+    {
+        xSemaphoreTake(touch_sem, portMAX_DELAY); // 等中断
+        esp_lcd_touch_read_data(touch_handle);    // I2C 读取触摸数据
 
-    esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
-                            "test/topic",
-                            "This is a test message.",
-                            0,
-                            0,
-                            0);
+        esp_lcd_touch_point_data_t points[1] = {};
+        uint8_t touch_cnt = 0;
+        esp_lcd_touch_get_data(touch_handle, points, &touch_cnt, 1);
+        if (touch_cnt > 0)
+        {
+            // 先清空原来的区域
+            esp_lcd_panel_draw_bitmap(panel_handle,
+                                      std::max(x - 25, 0),
+                                      std::max(y - 25, 0),
+                                      std::min(x + 25, static_cast<int>(VERTICAL_RES)),
+                                      std::min(y + 25, static_cast<int>(HORIZONRAL_RES)),
+                                      buffer_white);
+
+            x = points[0].x;
+            y = points[0].y;
+            strength = points[0].strength;
+            std::string msg = std::format("Touch: x={}, y={}, strength={}", x, y, strength);
+            ESP_LOGI(TAG, "%s", msg.c_str());
+            // 绘制新区域
+            esp_lcd_panel_draw_bitmap(panel_handle,
+                                      std::max(x - 25, 0),
+                                      std::max(y - 25, 0),
+                                      std::min(x + 25, static_cast<int>(VERTICAL_RES)),
+                                      std::min(y + 25, static_cast<int>(HORIZONRAL_RES)),
+                                      buffer_black);
+        }
+        else
+        {
+            ESP_LOGI(TAG, "No touch");
+            esp_lcd_panel_draw_bitmap(panel_handle, x - 25, y - 25, x + 25, y + 25, buffer_white);
+        }
+    }
+}
+
+void lcd_test()
+{
+    // 初始化屏幕
+    LCD::ST7796 panel_driver{SPI2_HOST, HORIZONRAL_RES, VERTICAL_RES};
+
+    panel_driver.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
+    panel_driver.set_io_cfg(GPIO_CS, GPIO_RS, CLK_FREQUENCY);
+    panel_driver.set_panel_cfg(GPIO_RST);
+
+    esp_err_t err;
+    err = panel_driver.spi_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD initialized");
+
+    err = panel_driver.io_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD IO: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD IO initialized");
+
+    err = panel_driver.panel_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD panel: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "LCD panel initialized");
+
+    uint16_t *buffer = (uint16_t *)heap_caps_malloc(HORIZONRAL_RES * VERTICAL_RES * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
+    memset(buffer, 0xFF, HORIZONRAL_RES * VERTICAL_RES * sizeof(uint16_t));
+    esp_lcd_panel_draw_bitmap(panel_driver.panel_handle(), 0, 0, VERTICAL_RES, HORIZONRAL_RES, buffer);
+    heap_caps_free(buffer);
+
+    // 初始化触控
+    touch_sem = xSemaphoreCreateBinary();
+
+    LCD::FT6336 touch_driver{HORIZONRAL_RES, VERTICAL_RES};
+
+    touch_driver.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
+    touch_driver.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT, my_touch_isr_cb);
+
+    err = touch_driver.i2c_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize I2C bus: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "I2C initialized");
+
+    err = touch_driver.io_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize LCD IO: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "Touch IO initialized");
+
+    err = touch_driver.touch_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize touch: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "Touch initialized");
+
+    touch_task_param_t argv = std::make_pair(panel_driver.panel_handle(),
+                                             touch_driver.touch_handle());
+
+    xTaskCreate(touch_task, "touch", 4096, static_cast<void *>(&argv), 5, NULL);
 }
