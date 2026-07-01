@@ -36,8 +36,6 @@
 
 static const char *TAG = "test";
 
-const char *ssid = CONFIG_IOT_WIFI_SSID;
-const char *password = CONFIG_IOT_WIFI_PASSWORD;
 const char *mqtt_server = CONFIG_IOT_MQTT_SERVER;
 const char *mqtt_username = CONFIG_IOT_MQTT_USERNAME;
 const char *mqtt_password = CONFIG_IOT_MQTT_PASSWORD;
@@ -74,33 +72,7 @@ void iot_test()
 
     IOT::report_env(36.5, 50.0, 0);
 
-    sdcard::SDcard::instance().init(GPIO_NUM_43, GPIO_NUM_44, GPIO_NUM_39, GPIO_NUM_40, GPIO_NUM_41, GPIO_NUM_42);
-
-    // 从分区表中读取图像的位置
-    // const esp_partition_t *img_partition = esp_partition_find_first(
-    //     ESP_PARTITION_TYPE_ANY,
-    //     ESP_PARTITION_SUBTYPE_ANY,
-    //     "image");
-
-    // // 将分区映射到数据地址空间
-    // const void *img_ptr;
-    // esp_partition_mmap_handle_t img_handle;
-
-    // esp_err_t err = esp_partition_mmap(
-    //     img_partition,
-    //     0,                       // 分区内偏移量（从头开始）
-    //     img_partition->size,     // 映射大小
-    //     ESP_PARTITION_MMAP_DATA, // 映射到数据空间
-    //     &img_ptr,                // 得到的指针
-    //     &img_handle              // 映射句柄，用于后续释放
-    // );
-
-    // if (err != ESP_OK)
-    // {
-    //     ESP_LOGE(TAG, "Failed to map partition to data memory");
-    //     return;
-    // }
-    // ESP_LOGI(TAG, "Image mapped to data memory");
+    sdcard::SDcard::instance().init();
 
     time_t now = time(NULL); // 秒级时间戳
     struct tm tm_info;
@@ -156,7 +128,6 @@ void iot_test()
 
             if (strcmp(path, "test.jpg") == 0)
             {
-                // IOT::upload_file(url, img_ptr, IMAGE_SIZE);
                 IOT::upload_file(url,"/sdcard/test.jpg");
 
                 // root = cJSON_CreateObject();
