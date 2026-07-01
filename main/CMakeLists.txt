@@ -32,6 +32,7 @@ set(requires esp_lcd
              esp_partition
              yolo26
              lwip
+             mbedtls
              nvs_flash
              mqtt
              esp_http_client

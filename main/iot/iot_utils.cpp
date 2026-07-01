@@ -1,6 +1,16 @@
+#include "esp_heap_caps.h"
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <functional>
+#include <memory>
+#include <sys/types.h>
+#include <utility>
+namespace fs = std::filesystem;
 
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -8,18 +18,20 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-
 #include "esp_netif_sntp.h"
-
 #include "freertos/projdefs.h"
+
+#include "eth.hpp"
 #include "mqtt.hpp"
 #include "mqtt_client.h"
-// #include "wifi.hpp"
-#include "eth.hpp"
 
 #include "iot_utils.hpp"
 
 static const char *TAG = "iot_utils";
+constexpr size_t HTTP_BUFFER_SIZE = 4096;
+static auto esp_deleter = [](uint8_t *ptr)
+{ heap_caps_free(ptr); };
+using esp_deleter_type = std::function<void(uint8_t *)>;
 
 namespace IOT
 {
@@ -82,7 +94,9 @@ namespace IOT
         config.url = url;
         config.method = HTTP_METHOD_PUT;
         config.timeout_ms = 10000;
+#if not CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
         config.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
 
         esp_http_client_handle_t client = esp_http_client_init(&config);
         if (!client)
@@ -127,9 +141,86 @@ namespace IOT
         return (status_code == 200 || status_code == 201) ? ESP_OK : ESP_FAIL;
     }
 
+    esp_err_t upload_file(const char *url, const char *path)
+    {
+        fs::path filename{path};
+
+        // 获取文件大小
+        if (!(fs::exists(filename) && fs::is_regular_file(path))) [[unlikely]]
+        {
+            ESP_LOGE(TAG, "The file does not exist or is not a regular file: %s", path);
+            return ESP_FAIL;
+        }
+        size_t filesize = fs::file_size(filename);
+
+        // 打开文件
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) [[unlikely]]
+        {
+            ESP_LOGE(TAG, "Cannot open file: %s", path);
+            return ESP_FAIL;
+        }
+
+        // 创建http客户端
+        esp_http_client_config_t config{};
+        config.url = url;
+        config.method = HTTP_METHOD_PUT;
+        config.timeout_ms = 10000;
+#if not CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        if (!client)
+        {
+            ESP_LOGE(TAG, "Failed to init HTTP client: %s", url);
+            return ESP_FAIL;
+        }
+
+        // Streaming upload: open connection then write data
+        esp_err_t err = esp_http_client_open(client, filesize);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+            esp_http_client_cleanup(client);
+            return err;
+        }
+
+        auto buffer = std::unique_ptr<uint8_t[], decltype(esp_deleter)>{
+            static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE, MALLOC_CAP_SPIRAM)),
+            std::move(esp_deleter)};
+        size_t total_posted = 0;
+        do
+        {
+            int read_size = std::min(HTTP_BUFFER_SIZE, filesize - total_posted);
+            file.read(reinterpret_cast<char *>(buffer.get()), read_size);
+            if (file.gcount() == 0)
+                break;
+
+            int wlen = esp_http_client_write(client,
+                                             reinterpret_cast<char *>(buffer.get()),
+                                             read_size);
+            if (wlen < 0)
+            {
+                ESP_LOGE(TAG, "Write failed!");
+                return ESP_FAIL;
+            }
+            total_posted += wlen;
+        } while (total_posted < filesize);
+
+        esp_http_client_fetch_headers(client);
+        int status_code = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG, "HTTP Status = %d, posted = %d bytes", status_code, total_posted);
+        esp_http_client_perform(client);
+
+        esp_http_client_cleanup(client);
+        return ESP_OK;
+    }
+
     esp_err_t report_env(float temp, double hum, uint16_t co2)
     {
-        if (!MQTT::MQTT::get_instance().mqtt_handle()) {
+        if (!MQTT::MQTT::get_instance().mqtt_handle())
+        {
             return ESP_FAIL;
         }
 
@@ -138,7 +229,7 @@ namespace IOT
         localtime_r(&now, &tm_info);
         char time[32];
         strftime(time, sizeof(time), "%Y-%m-%d %H:%M:%S", &tm_info);
-        if (time[0]!='2')
+        if (time[0] != '2')
             memset(time, 0, sizeof(time));
 
         cJSON *root = cJSON_CreateObject();
