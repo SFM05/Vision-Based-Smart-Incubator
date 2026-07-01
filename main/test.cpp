@@ -18,8 +18,6 @@
 
 #include "iot_utils.hpp"
 #include "mqtt.hpp"
-#include "nvs_init.hpp"
-#include "wifi.hpp"
 
 #include "yolo26.hpp"
 #include "yolo_inference.hpp"
@@ -28,7 +26,6 @@
 #include "st7796_driver.hpp"
 
 #include "eth.hpp"
-#include "ping/ping_sock.h"
 
 #include "test.hpp"
 
@@ -44,14 +41,14 @@ const char *mqtt_password = CONFIG_IOT_MQTT_PASSWORD;
 constexpr uint16_t HORIZONRAL_RES = 480;
 constexpr uint16_t VERTICAL_RES = 320;
 
-constexpr gpio_num_t GPIO_CS = GPIO_NUM_22;
-constexpr gpio_num_t GPIO_RST = GPIO_NUM_23;
-constexpr gpio_num_t GPIO_RS = GPIO_NUM_26; // LCD_RS (D/C)
-constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_27;
-constexpr gpio_num_t GPIO_CLK = GPIO_NUM_32;
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_54;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_19;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_18; // LCD_RS (D/C)
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_16;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_15;
 
-constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_50;
-constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_49;
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_14;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_6;
 constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
 constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 
@@ -214,13 +211,13 @@ void yolo_test()
     spi_flash_munmap(img_handle); // 释放映射
     ESP_LOGI(TAG, "Image decoded");
 
-    int center_x = img.width() / 2;
-    int center_y = img.height() / 2;
-    int img_size = std::max(img.width(), img.height());
-    int left = std::max(0, center_x - img_size / 2);
-    int right = std::min(int(img.width()), center_x + img_size / 2);
-    int top = std::max(0, center_y - img_size / 2);
-    int bottom = std::min(int(img.height()), center_y + img_size / 2);
+    // int center_x = img.width() / 2;
+    // int center_y = img.height() / 2;
+    // int img_size = std::max(img.width(), img.height());
+    // int left = std::max(0, center_x - img_size / 2);
+    // int right = std::min(int(img.width()), center_x + img_size / 2);
+    // int top = std::max(0, center_y - img_size / 2);
+    // int bottom = std::min(int(img.height()), center_y + img_size / 2);
 
     // 裁剪图像的中心部分
     // auto img_cropped = crop(img, {left, top, right, bottom});
@@ -298,7 +295,7 @@ static void touch_task(void *argv)
         xSemaphoreTake(touch_sem, portMAX_DELAY); // 等中断
         esp_lcd_touch_read_data(touch_handle);    // I2C 读取触摸数据
 
-        esp_lcd_touch_point_data_t points[1] = {0};
+        esp_lcd_touch_point_data_t points[1] = {};
         uint8_t touch_cnt = 0;
         esp_lcd_touch_get_data(touch_handle, points, &touch_cnt, 1);
         if (touch_cnt > 0)
@@ -334,7 +331,6 @@ static void touch_task(void *argv)
 
 void lcd_test()
 {
-
     // 初始化屏幕
     LCD::ST7796 panel_driver{SPI2_HOST, HORIZONRAL_RES, VERTICAL_RES};
 

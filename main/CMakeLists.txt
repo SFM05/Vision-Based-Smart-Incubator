@@ -13,7 +13,7 @@ set(srcs "main.cpp"
          "ui/events_init.c"
          "iot/mqtt.cpp"
          "iot/iot_utils.cpp"
-         "iot/eth.c"
+         "iot/private/utils.c"
          "iot/eth.cpp"
          "test.cpp")
 set(requires esp_lcd
