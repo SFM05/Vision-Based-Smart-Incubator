@@ -1,11 +1,4 @@
 menu "IOT Configuration"
-
-    config IOT_WIFI_SSID
-        string "WiFi SSID"
-
-    config IOT_WIFI_PASSWORD
-        string "WiFi Password"
-
     config IOT_MQTT_SERVER
         string "Address of MQTT Server"
 
@@ -14,4 +7,17 @@ menu "IOT Configuration"
 
     config IOT_MQTT_PASSWORD
         string "MQTT server Password"
+endmenu
+
+menu "SD Card"
+    choice SD_CARD_MOD
+        prompt "Method to connect SD card"
+        default SD_CARD_SPI_MOD
+
+        config SD_CARD_SPI_MOD
+            bool "SPI"
+        
+        config SD_CARD_SDIO_MOD
+            bool "SDIO(Invalid)"
+    endchoice
 endmenu

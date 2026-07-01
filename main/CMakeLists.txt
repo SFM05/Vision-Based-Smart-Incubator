@@ -16,7 +16,8 @@ set(srcs "main.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
-         "test.cpp")
+         "test.cpp"
+         "process.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -32,6 +33,7 @@ set(requires esp_lcd
              esp_partition
              yolo26
              lwip
+             mbedtls
              nvs_flash
              mqtt
              esp_http_client

@@ -1,23 +1,30 @@
-#include "cJSON.h"
-#include "driver/gpio.h"
+#include "dl_detect_define.hpp"
+#include "dl_image_define.hpp"
 #include "driver/i2c_master.h"
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
+#include <cstddef>
 #include <cstring>
+#include <vector>
 
 #include "dl_image_jpeg.hpp"
 
 #include "ft6336_driver.hpp"
+#include "hal/spi_types.h"
 #include "inference_task/inference_task.hpp"
 #include "lvgl_port/lvgl_port.hpp"
 #include "sensors/sensor_task.hpp"
 #include "soc/gpio_num.h"
 #include "st7796_driver.hpp"
 #include "ui/gui_guider.h"
+#include "yolo26.hpp"
 
 extern "C"
 {
@@ -26,12 +33,14 @@ extern "C"
 #include "ov5647.h"
 }
 
+#include "eth.hpp"
 #include "iot/iot_utils.hpp"
 #include "iot/mqtt.hpp"
-#include "eth.hpp"
+#include "sdcard.hpp"
 #include "sdkconfig.h"
 
-#define TEST
+// #define TEST
+#include "process.hpp"
 #include "test.hpp"
 
 static const char *TAG = "main";
@@ -54,74 +63,6 @@ constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
-static void upload_task(void *arg)
-{
-    char msg[512];
-    while (true)
-    {
-        if (xQueueReceive(MQTT::MQTT::get_instance().m_upload_queue, msg,
-                          pdMS_TO_TICKS(60000)) == pdTRUE)
-        {
-            ESP_LOGI(TAG, "Upload message received");
-
-            cJSON *root = cJSON_Parse(msg);
-            if (!root)
-            {
-                ESP_LOGW(TAG, "Failed to parse upload message");
-                continue;
-            }
-
-            cJSON *url_item = cJSON_GetObjectItem(root, "url");
-            if (!url_item)
-            {
-                ESP_LOGW(TAG, "No URL in upload message");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            const char *url = url_item->valuestring;
-            ESP_LOGI(TAG, "Uploading to: %s", url);
-
-            uint8_t *rgb_buf;
-            size_t rgb_size;
-            if (inference_get_raw_snapshot(&rgb_buf, &rgb_size) != ESP_OK)
-            {
-                ESP_LOGW(TAG, "Failed to get raw snapshot");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            dl::image::img_t img = {
-                .data = rgb_buf,
-                .width = 640,
-                .height = 640,
-                .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888};
-            dl::image::jpeg_img_t jpeg = dl::image::hw_encode_jpeg(img, 85);
-            heap_caps_free(rgb_buf);
-
-            if (!jpeg.data)
-            {
-                ESP_LOGE(TAG, "JPEG encoding failed");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            esp_err_t err = IOT::upload_file(url, jpeg.data, jpeg.data_len);
-            if (err == ESP_OK)
-            {
-                ESP_LOGI(TAG, "Upload successful (%zu bytes)", jpeg.data_len);
-            }
-            else
-            {
-                ESP_LOGE(TAG, "Upload failed");
-            }
-
-            free(jpeg.data);
-            cJSON_Delete(root);
-        }
-    }
-}
-
 extern "C" void app_main(void)
 {
 #ifdef TEST
@@ -132,10 +73,7 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
-    esp_task_wdt_config_t twdt_cfg = {.timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = false};
-    esp_task_wdt_init(&twdt_cfg);
-
-    LCD::ST7796 panel{SPI2_HOST, W, H};
+    LCD::ST7796 panel{SPI3_HOST, W, H};
     panel.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
     panel.set_io_cfg(GPIO_CS, GPIO_RS, CLK_FREQUENCY);
     panel.set_panel_cfg(GPIO_RST);
@@ -148,7 +86,7 @@ extern "C" void app_main(void)
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
     touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
     ESP_ERROR_CHECK(touch.i2c_init());
-    ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+    // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK)
@@ -205,6 +143,9 @@ extern "C" void app_main(void)
         }
     }
 
+    capture_init();
+    configure_isp();
+
     ESP_ERROR_CHECK(LvglPort::init(
         panel.panel_handle(),
         panel.io_handle(),
@@ -226,13 +167,17 @@ extern "C" void app_main(void)
     LvglPort::refresh();
     ESP_LOGI(TAG, "UI ready");
 
-    start_sensor_task(&guider_ui);
+    // start_sensor_task(&guider_ui);
+
+    ESP_LOGI(TAG, "%d",
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
+    sdcard::SDcard::instance().init();
 
     ETH::Ethernet::instance().init();
 
     if (ETH::Ethernet::instance().status())
     {
-        IOT::ntp_time_sync();
+        // IOT::ntp_time_sync();
 
         MQTT::MQTT::get_instance().set_mqtt_cfg(
             CONFIG_IOT_MQTT_SERVER,
@@ -240,16 +185,85 @@ extern "C" void app_main(void)
             CONFIG_IOT_MQTT_PASSWORD);
         MQTT::MQTT::get_instance().mqtt_init();
 
-        xTaskCreate(upload_task, "upload_task", 16384, NULL, 5, NULL);
-        ESP_LOGI(TAG, "MQTT + upload task started");
+        // ESP_LOGI(TAG, "MQTT + upload task started");
     }
 
-    start_inference_task(&guider_ui);
-    ESP_LOGI(TAG, "Inference task started");
+    // start_inference_task(&guider_ui);
+
+    // 启动捕捉任务
+    dl::image::img_t cropped_buf{
+        nullptr,
+        640,
+        640,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
+    cropped_buf.data = heap_caps_malloc(cropped_buf.bytes(),
+                                        MALLOC_CAP_SPIRAM);
+    SemaphoreHandle_t capture_inference_mutex = xSemaphoreCreateMutex();
+    QueueHandle_t capture_inference_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
+    QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    capture_process_args capture_args{
+        cropped_buf,
+        // start_inference,
+        capture_inference_queue,
+        inference_end,
+        capture_inference_mutex,
+        capture_request_queue};
+    xTaskCreate(capture_process,
+                "Capture",
+                4096,
+                &capture_args,
+                1,
+                nullptr);
+
+    // 启动推理任务
+    dl::Model *model = new dl::Model("yolo26",
+                                     fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
+    const char *names[] = {"Colony"};
+    constexpr int TARGET_K = 128;
+    constexpr float CONF_THRESH = 0.25f;
+    YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
+    std::vector<dl::detect::result_t> result;
+    result.reserve(TARGET_K);
+    inference_process_args inference_args{
+        cropped_buf,
+        model,
+        processor,
+        result,
+        capture_inference_queue,
+        inference_end,
+        capture_inference_mutex};
+    xTaskCreate(inference_process,
+                "Inference",
+                4096,
+                &inference_args,
+                1,
+                nullptr);
+
+    // 启动上传请求任务
+    upload_request_process_args upload_request_args{
+        capture_request_queue,
+        result};
+    xTaskCreate(upload_request_process,
+                "Upload Request",
+                5120,
+                &upload_request_args,
+                1,
+                nullptr);
+
+    // 启动真实上传任务
+    upload_process_args upload_args{
+        MQTT::MQTT::get_instance().m_upload_queue};
+    xTaskCreate(upload_process,
+                "Upload",
+                8192,
+                &upload_args,
+                1,
+                nullptr);
 
     while (true)
     {
-        LvglPort::tick();
+        // LvglPort::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 #endif
