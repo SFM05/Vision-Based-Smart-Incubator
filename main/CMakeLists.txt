@@ -9,6 +9,9 @@ set(cmake_dir ${espdl_dir}/fbs_loader/cmake)
 include(${cmake_dir}/utilities.cmake)
 
 set(srcs "main.cpp"
+         "i2c_scanner/i2c_scanner.cpp"
+         "led_ring/led_ring.cpp"
+         "heater/heater.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
          "sensors/sensor.c"
@@ -18,16 +21,19 @@ set(srcs "main.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
          "ui/gui_guider.c"
-         "ui/setup_scr_screen_1.c"
-         "ui/setup_scr_screen_2.c"
-         "ui/events_init.c"
+          "ui/setup_scr_screen_1.c"
+          "ui/setup_scr_screen_2.c"
+
+          "ui/events_init.c"
          "iot/wifi.cpp"
          "iot/mqtt.cpp"
          "iot/iot_utils.cpp"
          "iot/nvs_init.cpp")
 set(requires esp_lcd
              driver
+             esp_driver_ledc
              esp_video
+             led_strip
              esp_driver_spi
              esp_driver_i2c
              esp_lcd_st7796
@@ -54,7 +60,10 @@ set(include_dirs "."
                  "inference_task"
                  "yolo26"
                  "sensors"
-                 "iot")
+                 "iot"
+                 "led_ring"
+                 "i2c_scanner"
+                 "heater")
 
 idf_component_register(SRCS ${srcs}
                       REQUIRES ${requires}

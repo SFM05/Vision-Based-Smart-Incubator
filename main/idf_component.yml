@@ -12,3 +12,4 @@ dependencies:
   espressif/esp_ipa: '>=0.2.1'
   espressif/mqtt: ^1.0.0
   espressif/cjson: ^1.7.19
+  espressif/led_strip: ^3.0.0

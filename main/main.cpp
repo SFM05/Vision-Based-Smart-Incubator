@@ -17,6 +17,7 @@
 #include "ui/gui_guider.h"
 #include "inference_task/inference_task.hpp"
 #include "sensors/sensor_task.hpp"
+#include "sensors/sensor.h"
 
 extern "C" {
 #include "esp_sccb_i2c.h"
@@ -30,20 +31,26 @@ extern "C" {
 #include "iot/iot_utils.hpp"
 #include "iot/nvs_init.hpp"
 
+#include "i2c_scanner/i2c_scanner.hpp"
+#include "heater/heater.hpp"
+
 static const char *TAG = "main";
 
 constexpr uint16_t W = 480, H = 320;
 
-constexpr gpio_num_t GPIO_CS = GPIO_NUM_36;
-constexpr gpio_num_t GPIO_RST = GPIO_NUM_34;
-constexpr gpio_num_t GPIO_RS = GPIO_NUM_33;
-constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_32;
-constexpr gpio_num_t GPIO_CLK = GPIO_NUM_31;
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_52;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_51;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_31;
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_29;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_28;
 
-constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_29;
-constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_28;
-constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_27;
-constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_26;
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_50;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_49;
+constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
+constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
+
+constexpr gpio_num_t GPIO_HEAT_PWM = GPIO_NUM_22;
+constexpr gpio_num_t GPIO_LED_CTL = GPIO_NUM_23;
 
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
@@ -131,7 +138,7 @@ extern "C" void app_main(void)
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
     touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
     ESP_ERROR_CHECK(touch.i2c_init());
-    ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK) {
@@ -139,6 +146,8 @@ extern "C" void app_main(void)
     } else {
         ESP_LOGI(TAG, "Touch ready");
     }
+
+    init_sensor_devices(touch.i2c_handle());
 
     vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -148,6 +157,7 @@ extern "C" void app_main(void)
     cam_bus.sda_io_num = GPIO_CAM_SDA;
     cam_bus.scl_io_num = GPIO_CAM_SCL;
     cam_bus.clk_source = I2C_CLK_SRC_DEFAULT;
+    cam_bus.glitch_ignore_cnt = 7;
     cam_bus.flags.enable_internal_pullup = true;
 
     if (i2c_new_master_bus(&cam_bus, &cam_i2c) != ESP_OK) {
@@ -164,8 +174,8 @@ extern "C" void app_main(void)
 
         esp_video_init_csi_config_t csi = {};
         csi.sccb_config = sccb;
-        csi.reset_pin = -1;
-        csi.pwdn_pin = -1;
+        csi.reset_pin = GPIO_NUM_NC;
+        csi.pwdn_pin = GPIO_NUM_NC;
 
         esp_video_init_config_t video_cfg = {};
         video_cfg.csi = &csi;
@@ -212,14 +222,18 @@ extern "C" void app_main(void)
             CONFIG_IOT_MQTT_SERVER,
             CONFIG_IOT_MQTT_USERNAME,
             CONFIG_IOT_MQTT_PASSWORD);
-        MQTT::MQTT::get_instance().mqtt_init();
+            MQTT::MQTT::get_instance().mqtt_init();
 
         xTaskCreate(upload_task, "upload_task", 16384, NULL, 5, NULL);
         ESP_LOGI(TAG, "MQTT + upload task started");
     }
 
+    heater_init();
+
     start_inference_task(&guider_ui);
     ESP_LOGI(TAG, "Inference task started");
+
+    heater_start_pid();
 
     while (true) {
         LvglPort::tick();

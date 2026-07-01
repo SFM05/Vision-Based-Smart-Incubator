@@ -21,6 +21,17 @@ extern "C" {
 esp_err_t init_sensor_devices(i2c_master_bus_handle_t i2c_bus);
 
 /**
+ * @brief 获取/设置目标温度
+ */
+float sensor_get_target_temperature(void);
+void sensor_set_target_temperature(float temp);
+
+/**
+ * @brief 获取当前实际温度（线程安全）
+ */
+float sensor_get_current_temperature(void);
+
+/**
  * @brief 创建传感器读取任务（1 Hz）和 LVGL 定时器（200 ms 刷新 UI）
  *
  * @param ui LVGL 界面指针

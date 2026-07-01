@@ -17,6 +17,8 @@ static struct {
     bool has_new_data;
 } s_state = {};
 
+static float s_target_temperature = 27.0f;
+
 static lv_ui *s_ui = nullptr;
 
 static void sensor_read_task_fn(void *arg)
@@ -63,8 +65,10 @@ static void ui_update_timer_cb(lv_timer_t *timer)
     char buf[32];
 
     if (s_ui->screen_2_label_1) {
-        int t = (int)(temp * 10 + 0.5f);
-        lv_snprintf(buf, sizeof(buf), "Temperature: %d.%d C", t / 10, t % 10);
+        int c = (int)(temp * 10 + 0.5f);
+        int s = (int)(s_target_temperature * 10 + 0.5f);
+        lv_snprintf(buf, sizeof(buf), "Curr: %d.%d C    Set: %d.%d C",
+                    c / 10, c % 10, s / 10, s % 10);
         lv_label_set_text(s_ui->screen_2_label_1, buf);
     }
     if (s_ui->screen_2_label_2) {
@@ -94,4 +98,17 @@ void start_sensor_task(lv_ui *ui)
         sensor_read_task_fn, "sensor_read", 4096, NULL, 5, NULL, 0);
 
     ESP_LOGI(TAG, "Sensor task started (interval: 1s)");
+}
+
+float sensor_get_target_temperature(void) { return s_target_temperature; }
+void sensor_set_target_temperature(float temp) { s_target_temperature = temp; }
+
+float sensor_get_current_temperature(void)
+{
+    float t = 0.0f;
+    if (xSemaphoreTake(s_state.mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        t = s_state.temperature;
+        xSemaphoreGive(s_state.mutex);
+    }
+    return t;
 }

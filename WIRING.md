@@ -41,4 +41,38 @@
 #define PIN_CAM_SDA    7
 #define PIN_CAM_SCL    8
 ```
+wareshareesp32p4  ethernet
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_54;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_19;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_18; // LCD_RS (D/C)
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_16;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_15;
 
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_14;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_6;
+constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
+constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
+
+constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
+constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
+
+## 屏幕模块引脚 → wareshare-esp32p4-wifi6 (ESP32-P4)
+
+| 序号 | 模块引脚     | 功能                     | WT01P4C5 FPC 硬连接 |
+|------|-------------|--------------------------|--------------------|
+| 1    | VCC         | 屏电源正 (5V 推荐)         | 5V                 |
+| 2    | GND         | 屏电源地                   | GND                |
+| 3    | **LCD_CS**  | SPI 片选                   | **IO52** (GPIO 52) |
+| 4    | **LCD_RST** | 液晶复位 (低电平复位)      | **IO51** (GPIO 51) |
+| 5    | **LCD_RS**  | 数据/命令选择             | **IO31** (GPIO 31) |
+| 6    | **SDI**     | SPI MOSI                  | **IO29** (GPIO 29) |
+| 7    | **SCK**     | SPI 时钟                  | **IO28** (GPIO 28) |
+| 8    | LED         | 背光控制                  | **NC** (NC)    |
+| 9    | **SDO**     | SPI MISO                  | **NC** (NC) |
+| 10   | **CTP_SCL** | 触摸+传感器 I2C 时钟             | **IO50** (GPIO 50) |
+| 11   | **CTP_RST** | 触摸复位 (低电平复位)      | **IO49** (GPIO 49) |
+| 12   | **CTP_SDA** | 触摸+传感器 I2C 数据             | **IO5** (GPIO 5) |
+| 13   | **CTP_INT** | 触摸中断 (触摸时低电平)    | **IO4** (GPIO 4) |
+| 14   | SD_CS       | SD 卡 SPI 片选 (未使用)   | 悬空 / NC          |
+| 15   | Heat_pwm    | 加热PWM                     | **IO22** (GPIO 22) |
+| 16   | LED_CTL     | LED控制      | **IO23** (GPIO 23) |

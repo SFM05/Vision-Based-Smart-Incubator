@@ -1,4 +1,5 @@
 #include "inference_task.hpp"
+#include "led_ring/led_ring.hpp"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_cache.h"
@@ -35,6 +36,7 @@
 
 static const char *TAG = "camera_preview";
 static constexpr int CROP_SIZE = 640;
+static constexpr int CROP_SRC_SIZE = 1080;
 
 static struct {
     SemaphoreHandle_t mutex;
@@ -232,6 +234,36 @@ static void crop_center_rgb565_to_rgb888(
 }
 
 /**
+ * @brief RGB888 图像中心裁剪
+ */
+
+static Image::ImageAuto crop_center_rgb888(const Image::ImageAuto &src, int dst_w, int dst_h)
+{
+    int src_w = src.width();
+    int src_h = src.height();
+    int crop_x = std::max(0, (src_w - dst_w) / 2);
+    int crop_y = std::max(0, (src_h - dst_h) / 2);
+    int actual_w = std::min(dst_w, src_w);
+    int actual_h = std::min(dst_h, src_h);
+
+    Image::ImageAuto result(actual_w, actual_h);
+    auto dst_data = result.data();
+    const uint8_t *src_data = src.data_const().get();
+    if (!src_data || !dst_data) {
+        ESP_LOGE(TAG, "crop_center_rgb888: null data");
+        result.reset();
+        return result;
+    }
+
+    for (int y = 0; y < actual_h; y++) {
+        const uint8_t *src_row = src_data + (crop_y + y) * src_w * 3 + crop_x * 3;
+        uint8_t *dst_row = dst_data.get() + y * actual_w * 3;
+        memcpy(dst_row, src_row, actual_w * 3);
+    }
+    return result;
+}
+
+/**
  * @brief YOLO 模型加载与初始化
  */
 
@@ -366,15 +398,16 @@ static void process_static_image(uint8_t *crop_buf)
     if (!decoded.data_const()) { ESP_LOGE(TAG, "JPEG decode failed"); return; }
 
     /**
-     * @brief 缩放 + 填充至 640×640
+     * @brief 中心裁剪 1080×1080，再缩放到 640×640
      */
-    auto resized = resize(decoded, CROP_SIZE, CROP_SIZE, true);
+    auto cropped = crop_center_rgb888(decoded, CROP_SRC_SIZE, CROP_SRC_SIZE);
     decoded.reset();
+    if (!cropped.data_const()) { ESP_LOGE(TAG, "Center crop failed"); return; }
+
+    auto resized = resize(cropped, CROP_SIZE, CROP_SIZE, false);
+    cropped.reset();
     if (!resized.data_const()) { ESP_LOGE(TAG, "Resize failed"); return; }
 
-    /**
-     * @brief 复制到 crop_buf
-     */
     memcpy(crop_buf, resized.data_const().get(), CROP_SIZE * CROP_SIZE * 3);
     resized.reset();
 
@@ -431,6 +464,8 @@ static void capture_task_fn(void *arg)
     (void)arg;
     ESP_LOGI(TAG, "Capture task started");
 
+    led_ring_init(GPIO_NUM_23, 12);
+
     uint8_t *crop_buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
     if (!crop_buf) {
         ESP_LOGE(TAG, "OOM for crop buffer");
@@ -466,8 +501,20 @@ static void capture_task_fn(void *arg)
     int tick = 0;
 
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(50));
-        if (!s_cap.streaming) continue;
+        tick++;
+        bool do_inference = (tick >= s_interval_sec * 20);
+        if (do_inference) {
+            tick = 0;
+            led_ring_on();
+            vTaskDelay(pdMS_TO_TICKS(60));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+
+        if (!s_cap.streaming) {
+            if (do_inference) led_ring_off();
+            continue;
+        }
 
         struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
@@ -475,16 +522,14 @@ static void capture_task_fn(void *arg)
         buf.memory = V4L2_MEMORY_MMAP;
 
         if (ioctl(s_cap.fd, VIDIOC_DQBUF, &buf) < 0) {
+            if (do_inference) led_ring_off();
             continue;
         }
         if (buf.index >= (unsigned)s_cap.num_bufs) {
             ioctl(s_cap.fd, VIDIOC_QBUF, &buf);
+            if (do_inference) led_ring_off();
             continue;
         }
-
-        tick++;
-        bool do_inference = (tick >= s_interval_sec * 20);
-        if (do_inference) tick = 0;
 
         uint8_t *frame = (uint8_t *)s_cap.buf_start[buf.index];
         s_cap.last_index = buf.index;
@@ -493,8 +538,26 @@ static void capture_task_fn(void *arg)
                         ESP_CACHE_MSYNC_FLAG_DIR_M2C);
 
         if (do_inference) {
+            uint8_t *temp_1080 = (uint8_t *)heap_caps_malloc(
+                CROP_SRC_SIZE * CROP_SRC_SIZE * 3, MALLOC_CAP_DEFAULT);
+            if (!temp_1080) { ESP_LOGE(TAG, "OOM for temp_1080"); led_ring_off(); continue; }
+
             crop_center_rgb565_to_rgb888(frame, s_cap.width, s_cap.height,
-                                          crop_buf, CROP_SIZE, CROP_SIZE);
+                                          temp_1080, CROP_SRC_SIZE, CROP_SRC_SIZE);
+
+            {
+                dl::image::img_t it_1080 = {
+                    .data = temp_1080,
+                    .width = (uint16_t)CROP_SRC_SIZE,
+                    .height = (uint16_t)CROP_SRC_SIZE,
+                    .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888
+                };
+                Image::ImageAuto img_1080(it_1080);
+                auto scaled = resize(img_1080, CROP_SIZE, CROP_SIZE, false);
+                if (scaled.data_const()) {
+                    memcpy(crop_buf, scaled.data_const().get(), CROP_SIZE * CROP_SIZE * 3);
+                }
+            }
 
             if (xSemaphoreTake(s_raw.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
                 memcpy(s_raw.buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
@@ -519,7 +582,7 @@ static void capture_task_fn(void *arg)
             s_state.inferring = true;
 
             uint8_t *inf_buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
-            if (!inf_buf) { s_state.inferring = false; continue; }
+            if (!inf_buf) { s_state.inferring = false; led_ring_off(); continue; }
             memcpy(inf_buf, crop_buf, CROP_SIZE * CROP_SIZE * 3);
 
             dl::image::img_t it = {
@@ -548,6 +611,8 @@ static void capture_task_fn(void *arg)
             s_state.has_new_result = true;
             xSemaphoreGive(s_state.mutex);
         }
+
+        led_ring_off();
     }
 }
 
@@ -597,14 +662,21 @@ void inference_set_interval_seconds(int sec)
 esp_err_t inference_get_raw_snapshot(uint8_t **out_buf, size_t *out_size)
 {
     if (!s_raw.buf) return ESP_FAIL;
+
+    led_ring_on();
+    vTaskDelay(pdMS_TO_TICKS(60));
+
     uint8_t *buf = (uint8_t *)heap_caps_malloc(CROP_SIZE * CROP_SIZE * 3, MALLOC_CAP_DEFAULT);
-    if (!buf) return ESP_ERR_NO_MEM;
+    if (!buf) { led_ring_off(); return ESP_ERR_NO_MEM; }
     if (xSemaphoreTake(s_raw.mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         heap_caps_free(buf);
+        led_ring_off();
         return ESP_ERR_TIMEOUT;
     }
     memcpy(buf, s_raw.buf, CROP_SIZE * CROP_SIZE * 3);
     xSemaphoreGive(s_raw.mutex);
+    led_ring_off();
+
     *out_buf = buf;
     *out_size = CROP_SIZE * CROP_SIZE * 3;
     return ESP_OK;

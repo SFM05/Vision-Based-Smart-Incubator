@@ -23,6 +23,7 @@ typedef struct
     lv_obj_t *screen_2_label_3;
     lv_obj_t *screen_2_label_4;
     lv_obj_t *screen_2_slider_1;
+    lv_obj_t *screen_2_slider_2;
 } lv_ui;
 
 void setup_scr_screen_1(lv_ui *ui);

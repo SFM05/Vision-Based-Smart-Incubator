@@ -51,7 +51,7 @@ namespace LCD
         m_i2c_cfg.scl_io_num = scl_io_num;
         m_i2c_cfg.clk_source = I2C_CLK_SRC_XTAL;
         m_i2c_cfg.glitch_ignore_cnt = 7;
-        m_i2c_cfg.flags.enable_internal_pullup = true;
+        m_i2c_cfg.flags.enable_internal_pullup = false;
     }
     void FT6336::set_touch_config(gpio_num_t rst_io_num,
                                   gpio_num_t int_io_num,
