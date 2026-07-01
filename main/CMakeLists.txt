@@ -15,6 +15,7 @@ set(srcs "main.cpp"
          "iot/iot_utils.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
+         "sdcard/sdcard.cpp"
          "test.cpp")
 set(requires esp_lcd
              driver
@@ -26,6 +27,7 @@ set(requires esp_lcd
              espressif__esp_sccb_intf
              espressif__esp_cam_sensor
              lvgl
+             fatfs
              esp-dl
              esp_partition
              yolo26
@@ -44,7 +46,8 @@ set(include_dirs "."
                  "inference_task"
                  "yolo26"
                  "sensors"
-                 "iot")
+                 "iot"
+                 "sdcard")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

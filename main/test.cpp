@@ -10,6 +10,8 @@
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 #include "spi_flash_mmap.h"
+#include <cstddef>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <format>
