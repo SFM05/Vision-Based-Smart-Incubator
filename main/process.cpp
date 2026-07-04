@@ -3,6 +3,7 @@
 #include "dl_image_jpeg.hpp"
 #include "dl_image_process.hpp"
 #include "esp_cache.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
@@ -11,6 +12,7 @@
 #include "freertos/task.h"
 #include "inference_task.hpp"
 #include "iot_utils.hpp"
+#include "sensor.h"
 
 #include <cstddef>
 #include <cstring>
@@ -482,7 +484,7 @@ void upload_request_process(void *argv)
         cJSON_AddNumberToObject(root, "number", args->result.size());
         char *upload_msg = cJSON_PrintUnformatted(root);
 
-        int err = esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
+        int err = esp_mqtt_client_publish(MQTT::MQTT::instance().mqtt_handle(),
                                           std::format("device/{}/upload", IOT::get_mac()).c_str(),
                                           upload_msg,
                                           0,
@@ -492,6 +494,7 @@ void upload_request_process(void *argv)
             ESP_LOGI(TAG, "Request: %s.", upload_msg);
         else
             ESP_LOGI(TAG, "Fail to send request, return code: %d", err);
+        cJSON_free(upload_msg);
         cJSON_Delete(root);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
     }
@@ -516,7 +519,9 @@ void upload_process(void *argv)
         if (cJSON_GetObjectItem(root, "sucess")->type == cJSON_True)
         {
             IOT::upload_file(cJSON_GetObjectItem(root, "url")->valuestring,
-                             cJSON_GetObjectItem(root, "path")->valuestring);
+                             cJSON_GetObjectItem(root, "path")->valuestring,
+                             args->buffer,
+                             args->size);
             ESP_LOGI(TAG, "Upload %s to %s.",
                      cJSON_GetObjectItem(root, "url")->valuestring,
                      cJSON_GetObjectItem(root, "path")->valuestring);
@@ -527,5 +532,33 @@ void upload_process(void *argv)
         }
         cJSON_Delete(root);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+    }
+}
+
+void report_env_process(void *argv)
+{
+    const char *TAG = "report env";
+    sensors_data_t data;
+    esp_err_t err;
+
+    while (true)
+    {
+        err = sensors_driver_read(&data);
+        if (err == ESP_OK && data.is_valid)
+        {
+            IOT::report_env(data.temperature_c, data.humidity_rh, data.eco2_ppm);
+
+            ESP_LOGI(TAG, "%s",
+                     std::format("T={:>5.1f},RH={:>5.1f}",
+                                 data.temperature_c, data.humidity_rh)
+                         .c_str());
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Read failed (SGP30= %s, SHT40= %s)",
+                     data.eco2_ppm ? "OK" : "FAIL",
+                     data.temperature_c != 0 ? "OK" : "FAIL");
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

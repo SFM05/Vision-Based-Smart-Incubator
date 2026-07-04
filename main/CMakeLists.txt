@@ -16,7 +16,6 @@ set(srcs "main.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
-         "test.cpp"
          "process.cpp")
 set(requires esp_lcd
              driver

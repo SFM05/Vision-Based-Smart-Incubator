@@ -14,7 +14,10 @@ namespace IOT
                           const void *data, // JPEG 数据指针
                           size_t len);      // 数据长度
 
-    esp_err_t upload_file(const char *url, const char *path);
+    esp_err_t upload_file(const char *url,
+                          const char *path,
+                          uint8_t *buffer,
+                          size_t size);
 
     esp_err_t report_env(float temp, double hum, uint16_t co2);
 

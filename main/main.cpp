@@ -5,16 +5,14 @@
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
-#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <vector>
-
-#include "dl_image_jpeg.hpp"
 
 #include "ft6336_driver.hpp"
 #include "hal/spi_types.h"
@@ -41,7 +39,6 @@ extern "C"
 
 // #define TEST
 #include "process.hpp"
-#include "test.hpp"
 
 static const char *TAG = "main";
 
@@ -63,13 +60,17 @@ constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
+struct mqtt_event_handler_args
+{
+    QueueHandle_t &upload_feedback_queue;
+};
+void mqtt_event_handler(void *argv,
+                        esp_event_base_t base,
+                        int32_t event_id,
+                        void *event_data);
+
 extern "C" void app_main(void)
 {
-#ifdef TEST
-    iot_test();
-#endif
-
-#ifndef TEST
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
@@ -169,21 +170,21 @@ extern "C" void app_main(void)
 
     // start_sensor_task(&guider_ui);
 
-    ESP_LOGI(TAG, "%d",
-             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
     sdcard::SDcard::instance().init();
 
     ETH::Ethernet::instance().init();
 
+    QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
+    mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
     if (ETH::Ethernet::instance().status())
     {
-        // IOT::ntp_time_sync();
+        IOT::ntp_time_sync();
 
-        MQTT::MQTT::get_instance().set_mqtt_cfg(
-            CONFIG_IOT_MQTT_SERVER,
-            CONFIG_IOT_MQTT_USERNAME,
-            CONFIG_IOT_MQTT_PASSWORD);
-        MQTT::MQTT::get_instance().mqtt_init();
+        MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
+                                                CONFIG_IOT_MQTT_USERNAME,
+                                                CONFIG_IOT_MQTT_PASSWORD);
+        MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
+                                             &mqtt_event_args);
 
         // ESP_LOGI(TAG, "MQTT + upload task started");
     }
@@ -252,12 +253,25 @@ extern "C" void app_main(void)
                 nullptr);
 
     // 启动真实上传任务
+    constexpr size_t HTTP_BUFFER_SIZE = 1024;
+    uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
+                                                              MALLOC_CAP_SPIRAM));
     upload_process_args upload_args{
-        MQTT::MQTT::get_instance().m_upload_queue};
+        upload_feed_back_queue,
+        buffer,
+        HTTP_BUFFER_SIZE};
     xTaskCreate(upload_process,
                 "Upload",
                 8192,
                 &upload_args,
+                1,
+                nullptr);
+
+    // 启动环境检测任务
+    xTaskCreate(report_env_process,
+                "ReporEnv",
+                2048,
+                nullptr,
                 1,
                 nullptr);
 
@@ -266,5 +280,85 @@ extern "C" void app_main(void)
         // LvglPort::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
-#endif
+}
+
+void mqtt_event_handler(void *argv,
+                        esp_event_base_t base,
+                        int32_t event_id,
+                        void *event_data)
+{
+    const char *TAG = "MQTT event";
+    esp_mqtt_event_handle_t event = static_cast<esp_mqtt_event_handle_t>(event_data);
+    // esp_mqtt_client_handle_t client = event->client;
+    // int msg_id;
+
+    auto args = static_cast<mqtt_event_handler_args *>(argv);
+
+    switch (static_cast<esp_mqtt_event_id_t>(event_id))
+    {
+    case MQTT_EVENT_CONNECTED:
+        ESP_LOGI(TAG, "connected");
+        esp_mqtt_client_subscribe_single(MQTT::MQTT::instance().mqtt_handle(),
+                                         std::format("server/{}/#", IOT::get_mac()).c_str(),
+                                         1);
+        break;
+
+    case MQTT_EVENT_DISCONNECTED:
+        ESP_LOGW(TAG, "disconnected");
+        break;
+
+    case MQTT_EVENT_SUBSCRIBED:
+        ESP_LOGI(TAG, "subscribed, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
+        // msg_id = esp_mqtt_client_publish(client, "topic/qos0", "data", 0, 0, 0);
+        // ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        break;
+
+    case MQTT_EVENT_UNSUBSCRIBED:
+        ESP_LOGI(TAG, "unsubscribed, msg_id=%d", event->msg_id);
+        break;
+
+    case MQTT_EVENT_PUBLISHED:
+        ESP_LOGI(TAG, "publish, msg_id=%d", event->msg_id);
+        break;
+
+    case MQTT_EVENT_DATA:
+        ESP_LOGI(TAG, "receive data");
+        // printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        {
+            size_t len = event->topic_len;
+            if (len >= 7 && memcmp(event->topic + len - 7, "/upload", 7) == 0)
+            {
+                char url[512] = {};
+                int copy_len = (event->data_len < 512) ? event->data_len : 512;
+                memcpy(url, event->data, copy_len);
+
+                if (args->upload_feedback_queue)
+                    xQueueSend(args->upload_feedback_queue, url, 0); // 0 = 不阻塞，满了就丢弃
+            }
+        }
+        break;
+
+    case MQTT_EVENT_ERROR:
+        ESP_LOGE(TAG, "error");
+        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
+        {
+            ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
+            ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event->error_handle->esp_tls_stack_err);
+            ESP_LOGE(TAG, "Last captured errno : %d (%s)", event->error_handle->esp_transport_sock_errno,
+                     strerror(event->error_handle->esp_transport_sock_errno));
+        }
+        else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED)
+        {
+            ESP_LOGE(TAG, "Connection refused error: 0x%x", event->error_handle->connect_return_code);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
+        }
+        break;
+
+    default:
+        ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+        break;
+    }
 }

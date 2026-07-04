@@ -4,7 +4,9 @@
 #include "dl_model_base.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
+#include "esp_event_base.h"
 #include "yolo26.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -46,8 +48,12 @@ void upload_request_process(void *argv);
 
 struct upload_process_args{
     QueueHandle_t msg_queue;
+    uint8_t *buffer;
+    size_t size;
 };
-void upload_process(void *args);
+void upload_process(void *argv);
+
+void report_env_process(void *argv);
 
 // struct draw_box_process_args
 // {
