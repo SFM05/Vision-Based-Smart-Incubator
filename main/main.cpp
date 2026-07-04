@@ -18,6 +18,7 @@
 #include "hal/spi_types.h"
 #include "inference_task/inference_task.hpp"
 #include "lvgl_port/lvgl_port.hpp"
+#include "sensor.h"
 #include "sensors/sensor_task.hpp"
 #include "soc/gpio_num.h"
 #include "st7796_driver.hpp"
@@ -39,6 +40,7 @@ extern "C"
 
 // #define TEST
 #include "process.hpp"
+#include "cam.hpp"
 
 static const char *TAG = "main";
 
@@ -88,6 +90,7 @@ extern "C" void app_main(void)
     touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
     ESP_ERROR_CHECK(touch.i2c_init());
     // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+    ESP_ERROR_CHECK(sensors_driver_init(touch.i2c_handle()));
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK)
@@ -144,8 +147,6 @@ extern "C" void app_main(void)
         }
     }
 
-    capture_init();
-    configure_isp();
 
     ESP_ERROR_CHECK(LvglPort::init(
         panel.panel_handle(),
@@ -168,7 +169,7 @@ extern "C" void app_main(void)
     LvglPort::refresh();
     ESP_LOGI(TAG, "UI ready");
 
-    // start_sensor_task(&guider_ui);
+    CAM::camera::instance().init_camera();
 
     sdcard::SDcard::instance().init();
 
@@ -189,8 +190,6 @@ extern "C" void app_main(void)
         // ESP_LOGI(TAG, "MQTT + upload task started");
     }
 
-    // start_inference_task(&guider_ui);
-
     // 启动捕捉任务
     dl::image::img_t cropped_buf{
         nullptr,
@@ -210,12 +209,12 @@ extern "C" void app_main(void)
         inference_end,
         capture_inference_mutex,
         capture_request_queue};
-    xTaskCreate(capture_process,
-                "Capture",
-                4096,
-                &capture_args,
-                1,
-                nullptr);
+    // xTaskCreate(capture_process,
+    //             "Capture",
+    //             4096,
+    //             &capture_args,
+    //             1,
+    //             nullptr);
 
     // 启动推理任务
     dl::Model *model = new dl::Model("yolo26",

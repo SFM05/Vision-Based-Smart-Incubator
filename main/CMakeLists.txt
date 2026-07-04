@@ -16,7 +16,8 @@ set(srcs "main.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
-         "process.cpp")
+         "process.cpp"
+         "cam/cam.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -48,7 +49,8 @@ set(include_dirs "."
                  "yolo26"
                  "sensors"
                  "iot"
-                 "sdcard")
+                 "sdcard"
+                 "cam")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

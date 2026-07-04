@@ -4,7 +4,6 @@
 #include "dl_model_base.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
-#include "esp_event_base.h"
 #include "yolo26.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -40,13 +39,15 @@ struct inference_process_args
 };
 void inference_process(void *argv);
 
-struct upload_request_process_args{
+struct upload_request_process_args
+{
     QueueHandle_t &request_upload;
     std::vector<dl::detect::result_t> result;
 };
 void upload_request_process(void *argv);
 
-struct upload_process_args{
+struct upload_process_args
+{
     QueueHandle_t msg_queue;
     uint8_t *buffer;
     size_t size;
