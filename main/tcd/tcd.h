@@ -1,6 +1,6 @@
 #pragma once
 
-#include "driver/gpio.h" // 引入 gpio 类型定义
+#include "driver/gpio.h"
 
 #ifdef __cplusplus
 extern "C" {

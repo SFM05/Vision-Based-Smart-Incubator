@@ -36,9 +36,9 @@ extern "C"
 #include "sdcard.hpp"
 #include "sdkconfig.h"
 
+#include "backend.hpp"
 #include "cam.hpp"
 #include "frontend.hpp"
-#include "process.hpp"
 #include "tcd/tcd.h"
 
 static const char *TAG = "main";
@@ -59,9 +59,9 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_TCD_SDA    = GPIO_NUM_7;  // 复用 Camera I2C
-constexpr gpio_num_t GPIO_TCD_SCL    = GPIO_NUM_8;  // 复用 Camera I2C
-constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_5;  // 加热片 PWM
+constexpr gpio_num_t GPIO_TCD_SDA = GPIO_NUM_7;    // 复用 Camera I2C
+constexpr gpio_num_t GPIO_TCD_SCL = GPIO_NUM_8;    // 复用 Camera I2C
+constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_5; // 加热片 PWM
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
@@ -182,17 +182,6 @@ extern "C" void app_main(void)
          touch.touch_handle(),
          W, H);
 
-    // {
-    //     MirrorConfig cfg;
-    //     cfg.mv = true;
-    //     cfg.mx = false;
-    //     cfg.my = false;
-    //     panel.set_mirror(cfg);
-    //     LvglPort::set_mirror(cfg);
-    // }
-    // ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
-    //          panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
-
     setup_ui(&guider_ui);
     // LvglPort::refresh();
     lv_refr_now(lv_disp_get_default());
@@ -296,10 +285,10 @@ extern "C" void app_main(void)
     //             1,
     //             nullptr);
 
-    // // 启动环境检测任务
+    // 启动环境检测任务
     // xTaskCreate(report_env_process,
     //             "ReporEnv",
-    //             2048,
+    //             4096,
     //             nullptr,
     //             1,
     //             nullptr);
@@ -317,15 +306,24 @@ extern "C" void app_main(void)
         flush_screen};
     xTaskCreate(image_display_process,
                 "Image Display",
-                4096,
+                2048,
                 &image_display_args,
+                1,
+                nullptr);
+
+    xTaskCreate(env_display_process,
+                "Env Display",
+                3072,
+                nullptr,
                 1,
                 nullptr);
 
     while (true)
     {
+        lv_lock();
         lv_timer_handler();
-        vTaskDelay(pdMS_TO_TICKS(20));
+        lv_unlock();
+        vTaskDelay(pdMS_TO_TICKS(15));
     }
 }
 

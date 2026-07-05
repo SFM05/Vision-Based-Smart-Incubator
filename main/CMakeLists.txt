@@ -7,16 +7,16 @@ set(srcs "main.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
          "ui/setup_scr_screen_2.c"
-         "ui/events_init.c"
+          "ui/events_init.c"
          "iot/mqtt.cpp"
          "iot/iot_utils.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
-         "process.cpp"
          "cam/cam.cpp"
+         "tcd/tcd.cpp"
          "frontend.cpp"
-         "tcd/tcd.cpp")
+         "backend.cpp")
 set(requires esp_lcd
              driver
              esp_video

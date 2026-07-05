@@ -1,48 +1,61 @@
+/*
+* Copyright 2026 NXP
+* NXP Proprietary. This software is owned or controlled by NXP and may only be used strictly in
+* accordance with the applicable license terms. By expressly accepting such terms or by downloading, installing,
+* activating and/or otherwise using the software, you are agreeing that you have read, and that you agree to
+* comply with and are bound by, such license terms.  If you do not agree to be bound by the applicable license
+* terms, then you may not retain, install, activate or otherwise use the software.
+*/
+
 #include "events_init.h"
 #include <stdio.h>
+#include "lvgl.h"
 
-static void btn_param_cb(lv_event_t *e)
+#if LV_USE_GUIDER_SIMULATOR && LV_USE_FREEMASTER
+#include "freemaster_client.h"
+#endif
+
+
+static void screen_1_Button_screen1to2_event_handler (lv_event_t *e)
 {
-    lv_ui *ui = (lv_ui *)lv_event_get_user_data(e);
-    setup_scr_screen_2(ui);
-    lv_scr_load(ui->screen_2);
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        ui_load_scr_animation(&guider_ui, &guider_ui.screen_2, guider_ui.screen_2_del, &guider_ui.screen_1_del, setup_scr_screen_2, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, true);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
-static void btn_cam_pre_cb(lv_event_t *e)
+void events_init_screen_1 (lv_ui *ui)
 {
-    lv_ui *ui = (lv_ui *)lv_event_get_user_data(e);
-    setup_scr_screen_1(ui);
-    lv_scr_load(ui->screen_1);
+    lv_obj_add_event_cb(ui->screen_1_Button_screen1to2, screen_1_Button_screen1to2_event_handler, LV_EVENT_ALL, ui);
 }
 
-static const int interval_table[] = {10, 20, 30, 40, 50, 60};
-
-static void slider_interval_cb(lv_event_t *e)
+static void screen_2_Button_screen2to1_event_handler (lv_event_t *e)
 {
-    lv_ui *ui = (lv_ui *)lv_event_get_user_data(e);
-    int idx = lv_slider_get_value(ui->screen_2_slider_1);
-    if (idx < 0) idx = 0;
-    if (idx > 5) idx = 5;
-    int sec = interval_table[idx];
-
-    lv_slider_set_value(ui->screen_2_slider_1, idx, LV_ANIM_OFF);
-
-    char buf[32];
-    if (sec < 60)
-        lv_snprintf(buf, sizeof(buf), "Interval_time: %ds", sec);
-    else
-        lv_snprintf(buf, sizeof(buf), "Interval_time: 1min");
-    lv_label_set_text(ui->screen_2_label_3, buf);
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        ui_load_scr_animation(&guider_ui, &guider_ui.screen_1, guider_ui.screen_1_del, &guider_ui.screen_2_del, setup_scr_screen_1, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, true);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
-void events_init_screen_1(lv_ui *ui)
+void events_init_screen_2 (lv_ui *ui)
 {
-    lv_obj_add_event_cb(ui->screen_1_btn_1, btn_param_cb, LV_EVENT_CLICKED, ui);
+    lv_obj_add_event_cb(ui->screen_2_Button_screen2to1, screen_2_Button_screen2to1_event_handler, LV_EVENT_ALL, ui);
 }
 
-void events_init_screen_2(lv_ui *ui)
+
+void events_init(lv_ui *ui)
 {
-    lv_obj_add_event_cb(ui->screen_2_btn_1, btn_cam_pre_cb, LV_EVENT_CLICKED, ui);
-    lv_obj_add_event_cb(ui->screen_2_slider_1, slider_interval_cb, LV_EVENT_VALUE_CHANGED, ui);
-    lv_event_send(ui->screen_2_slider_1, LV_EVENT_VALUE_CHANGED, NULL);
+
 }

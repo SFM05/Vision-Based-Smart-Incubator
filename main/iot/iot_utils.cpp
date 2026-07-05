@@ -6,12 +6,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <functional>
-#include <memory>
-#include <sys/types.h>
-#include <utility>
 namespace fs = std::filesystem;
-
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
 #include "esp_err.h"
@@ -20,6 +15,8 @@ namespace fs = std::filesystem;
 #include "esp_mac.h"
 #include "esp_netif_sntp.h"
 #include "freertos/projdefs.h"
+#include <functional>
+#include <sys/types.h>
 
 #include "eth.hpp"
 #include "mqtt.hpp"

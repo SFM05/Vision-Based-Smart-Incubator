@@ -1,12 +1,15 @@
+#include "core/lv_obj_pos.h"
 #include "dl_image_define.hpp"
 #include "dl_image_process.hpp"
 #include "draw/lv_img_buf.h"
 #include "esp_cache.h"
+#include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_touch.h"
 #include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "gui_guider.h"
 #include "lvgl.h"
 #include "misc/lv_color.h"
@@ -16,6 +19,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#include "sensor.h"
 
 #include "frontend.hpp"
 
@@ -27,7 +32,11 @@ static void lvgl_tick_task(void *arg)
 static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)drv->user_data;
-    if (!panel) { lv_disp_flush_ready(drv); return; }
+    if (!panel)
+    {
+        lv_disp_flush_ready(drv);
+        return;
+    }
 
     size_t pixel_cnt = (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1);
     size_t flush_sz = pixel_cnt * sizeof(uint16_t);
@@ -43,40 +52,36 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
 static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
     esp_lcd_touch_handle_t touch = (esp_lcd_touch_handle_t)drv->user_data;
-    if (!touch) { data->state = LV_INDEV_STATE_REL; return; }
+    if (!touch)
+    {
+        data->state = LV_INDEV_STATE_REL;
+        return;
+    }
 
     esp_err_t err = esp_lcd_touch_read_data(touch);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         err = esp_lcd_touch_read_data(touch);
     }
-    if (err != ESP_OK) {
-        data->state = LV_INDEV_STATE_REL; return;
+    if (err != ESP_OK)
+    {
+        data->state = LV_INDEV_STATE_REL;
+        return;
     }
 
     esp_lcd_touch_point_data_t point;
     uint8_t cnt = 0;
     esp_lcd_touch_get_data(touch, &point, &cnt, 1);
 
-    if (cnt > 0) {
-        data->point.x=point.x;
-        data->point.y=point.y;
+    if (cnt > 0)
+    {
+        data->point.x = point.x;
+        data->point.y = point.y;
 
-        // int rx = point.x;
-        // int ry = point.y;
-        // const auto& m = LvglPort::mirror();
-        // if (m.mv) {
-        //     int src_x = m.my ? (477 - ry) : ry;
-        //     int src_y = m.mx ? rx : (319 - rx);
-        //     data->point.x = src_x * 479 / 477;
-        //     data->point.y = src_y;
-        // } else {
-        //     int src_x = m.mx ? (319 - rx) : rx;
-        //     int src_y = m.my ? (477 - ry) : ry;
-        //     data->point.x = src_x * 479 / 319;
-        //     data->point.y = src_y * 319 / 477;
-        // }
         data->state = LV_INDEV_STATE_PR;
-    } else {
+    }
+    else
+    {
         data->state = LV_INDEV_STATE_REL;
     }
 }
@@ -137,6 +142,7 @@ esp_err_t init(esp_lcd_panel_handle_t panel,
     indev_drv.user_data = (void *)touch;
     lv_indev_drv_register(&indev_drv);
 
+    lv_mutex_init(); // 创建线程锁（**重要**）
     ESP_LOGI(TAG, "LVGL initialized: %dx%d, buf1=%p buf2=%p", width, height, buf1, buf2);
     return ESP_OK;
 }
@@ -148,7 +154,6 @@ void image_display_process(void *argv)
     ESP_LOGI(TAG, "Image display process start.");
 
     // lv_label_set_text(guider_ui.screen_1_label_1, std::format("Num: {:>3}",42).c_str());
-    lv_label_set_text_fmt(guider_ui.screen_1_label_1, "Num: %d", args->result.size());
 
     dl::image::ImageTransformer transformer;
 
@@ -157,11 +162,17 @@ void image_display_process(void *argv)
         xSemaphoreTake(args->flush_screen, portMAX_DELAY);
         ESP_LOGI(TAG, "Flush sceen.");
 
+        lv_lock();
+        lv_label_set_text_fmt(guider_ui.screen_1_Num, "Num: %zu", args->result.size());
+        lv_unlock();
+
         transformer.set_src_img(args->src_img);
         transformer.set_dst_img(args->dest_buffer);
         transformer.transform();
 
-        lv_img_dsc_t *img_dsc = lv_canvas_get_img(guider_ui.screen_1_canvas_1);
+        lv_lock();
+        lv_img_dsc_t *img_dsc = lv_canvas_get_img(guider_ui.screen_1_canvas);
+        lv_unlock();
         uint8_t *canvas_raw = const_cast<uint8_t *>(img_dsc->data);
         uint16_t *img_pix = reinterpret_cast<uint16_t *>(args->dest_buffer.data);
         lv_color_t color;
@@ -180,8 +191,53 @@ void image_display_process(void *argv)
         esp_cache_msync((void *)img_dsc->data, canvas_sz,
                         ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
         // 通知 LVGL 重绘
-        lv_obj_invalidate(guider_ui.screen_1_canvas_1);
-        lv_refr_now(lv_disp_get_default());
+        lv_lock();
+        lv_obj_invalidate(guider_ui.screen_1_canvas);
+        lv_obj_invalidate(guider_ui.screen_1_Num);
+        // lv_refr_now(lv_disp_get_default());
+        lv_unlock();
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+    }
+}
+
+void env_display_process(void *argv)
+{
+    const char *TAG = "env display";
+    sensors_data_t data;
+    esp_err_t err;
+
+    while (true)
+    {
+        err = sensors_driver_read(&data);
+        if (err == ESP_OK && data.is_valid)
+        {
+            lv_lock();
+            lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
+                                  "Temp: %.1f", data.temperature_c);
+            lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
+                                  "Hum: %.1f", data.humidity_rh);
+            lv_label_set_text_fmt(guider_ui.screen_1_CO2,
+                                  "CO2: %d", data.eco2_ppm);
+            lv_obj_invalidate(guider_ui.screen_1_Temperature);
+            lv_obj_invalidate(guider_ui.screen_1_Humidity);
+            lv_obj_invalidate(guider_ui.screen_1_CO2);
+            lv_refr_now(lv_disp_get_default());
+            lv_unlock();
+        }
+        else
+        {
+            lv_lock();
+            lv_label_set_text(guider_ui.screen_1_Temperature, "Temp: Err");
+            lv_label_set_text(guider_ui.screen_1_Humidity, "Hum: Err");
+            lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
+            lv_obj_invalidate(guider_ui.screen_1_Temperature);
+            lv_obj_invalidate(guider_ui.screen_1_Humidity);
+            lv_obj_invalidate(guider_ui.screen_1_CO2);
+            lv_refr_now(lv_disp_get_default());
+            lv_unlock();
+        }
+
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

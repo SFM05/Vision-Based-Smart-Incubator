@@ -2,9 +2,20 @@
 
 #include "dl_detect_define.hpp"
 #include "dl_image_define.hpp"
+#include "esp_err.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
+#include <cassert>
 #include <vector>
+
+inline SemaphoreHandle_t lv_handle = NULL;
+inline void lv_mutex_init()
+{
+    lv_handle = xSemaphoreCreateMutex();
+    assert(lv_handle);
+}
+inline void lv_lock() { xSemaphoreTake(lv_handle, portMAX_DELAY); }
+inline void lv_unlock() { xSemaphoreGive(lv_handle); }
 
 esp_err_t init(esp_lcd_panel_handle_t panel,
                esp_lcd_panel_io_handle_t io,
@@ -20,3 +31,5 @@ struct image_display_process_args
     SemaphoreHandle_t &flush_screen;
 };
 void image_display_process(void *argv);
+
+void env_display_process(void *argv);

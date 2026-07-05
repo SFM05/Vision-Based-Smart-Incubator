@@ -36,9 +36,9 @@ namespace fs = std::filesystem;
 #include "mqtt.hpp"
 #include "sensor.h"
 
-#include "process.hpp"
+#include "backend.hpp"
 
-static const char *TAG = "process";
+static const char *TAG = "backend";
 static constexpr int CROP_SIZE = 640;
 
 void capture_process(void *argv)
@@ -46,13 +46,7 @@ void capture_process(void *argv)
     const char *TAG = "capture";
     ESP_LOGI(TAG, "Capture process started.");
     auto args = static_cast<capture_process_args *>(argv);
-
-    /**
-     * @brief 再初始化和启动摄像头（先分配推理缓冲区会影响 ISP DMA，故摄像头启动后再分配）
-     */
-    // capture_init();
-
-    // configure_isp();
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     v4l2_buffer cam_buf{};
     cam_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -107,7 +101,7 @@ void capture_process(void *argv)
         tm tm_info;
         localtime_r(&now, &tm_info); // 转本地时间
         frame_meta_data data{"\0", plate_id};
-        strftime(data.time, 32, "%Y%m%d-%H%M%S", &tm_info);
+        strftime(data.time, 20, "%Y%m%d-%H%M%S", &tm_info);
 
         vTaskDelay(pdMS_TO_TICKS(1));
         // frame_meta_data data{current_time, plate_id};
@@ -296,13 +290,38 @@ void report_env_process(void *argv)
     const char *TAG = "report env";
     sensors_data_t data;
     esp_err_t err;
-    ESP_LOGI(TAG,"report env process start.");
+    char current_day[20];
+    char current_time[20];
+    ESP_LOGI(TAG, "report env process start.");
 
     while (true)
     {
         err = sensors_driver_read(&data);
         if (err == ESP_OK && data.is_valid)
         {
+            time_t now = time(NULL); // 秒级时间戳
+            tm tm_info;
+            localtime_r(&now, &tm_info); // 转本地时间
+            strftime(current_day, 20, "%Y-%m-%d", &tm_info);
+            strftime(current_time, 20, "%H:%M:%S", &tm_info);
+            fs::path file_path = std::format("/sdcard/env/{}.txt", current_day);
+
+            if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
+                fs::create_directories(file_path.parent_path());
+            std::ofstream file(file_path, std::ios::app);
+            if (!file.is_open()) [[unlikely]]
+            {
+                ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
+                continue;
+            }
+
+            file << std::format("{} {:<6.1f} {:<6.1f} {:<8}\n",
+                                current_time,
+                                data.temperature_c,
+                                data.humidity_rh,
+                                data.eco2_ppm);
+            file.close(); // 关闭文件
+
             IOT::report_env(data.temperature_c, data.humidity_rh, data.eco2_ppm);
 
             ESP_LOGI(TAG, "%s",

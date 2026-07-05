@@ -2,13 +2,11 @@
 
 #include <inttypes.h>
 
-#include "driver/spi_master.h"
+// #include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_ops.h"
+// #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_st7796.h"
-
-#include "display_config.hpp"
 
 namespace LCD
 {

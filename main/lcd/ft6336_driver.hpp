@@ -3,6 +3,7 @@
 #include "driver/i2c_master.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
+#include <cstdint>
 
 namespace LCD
 {
@@ -25,7 +26,7 @@ namespace LCD
          * @param width LCD宽度
          * @param height LCD高度
          */
-        FT6336(uint16_t width, uint16_t height);
+        FT6336(uint16_t width, uint16_t height, uint32_t speed = 20e3);
         /**
          * @brief 设置I2C
          *
