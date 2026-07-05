@@ -11,10 +11,11 @@ set(srcs "main.cpp"
          "ui/setup_scr_screen_1.c"
          "ui/setup_scr_screen_2.c"
          "ui/events_init.c"
-         "iot/wifi.cpp"
          "iot/mqtt.cpp"
          "iot/iot_utils.cpp"
-         "iot/nvs_init.cpp"
+         "iot/private/utils.c"
+         "iot/eth.cpp"
+         "sdcard/sdcard.cpp"
          "tcd/tcd.cpp")
 set(requires esp_lcd
              driver
@@ -25,19 +26,20 @@ set(requires esp_lcd
              esp_lcd_touch_ft5x06
              espressif__esp_sccb_intf
              espressif__esp_cam_sensor
-             freertos
              lvgl
+             fatfs
              esp-dl
              esp_partition
              yolo26
-             esp_wifi
-             esp_wifi_remote
-             esp_hosted
              lwip
+             mbedtls
              nvs_flash
              mqtt
              esp_http_client
-             cjson)
+             cjson
+             esp_netif
+             esp_eth
+             ip101)
 set(include_dirs "."
                  "lcd"
                  "lvgl_port"
@@ -46,7 +48,8 @@ set(include_dirs "."
                  "yolo26"
                  "sensors"
                  "iot"
-                 "tcd")
+                 "tcd"
+                 "sdcard")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

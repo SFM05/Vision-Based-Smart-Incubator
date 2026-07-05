@@ -28,8 +28,7 @@ extern "C"
 
 #include "iot/iot_utils.hpp"
 #include "iot/mqtt.hpp"
-#include "iot/nvs_init.hpp"
-#include "iot/wifi.hpp"
+#include "eth.hpp"
 #include "sdkconfig.h"
 
 #include "tcd/tcd.h"
@@ -38,16 +37,16 @@ static const char *TAG = "main";
 
 constexpr uint16_t W = 480, H = 320;
 
-constexpr gpio_num_t GPIO_CS = GPIO_NUM_36;
-constexpr gpio_num_t GPIO_RST = GPIO_NUM_34;
-constexpr gpio_num_t GPIO_RS = GPIO_NUM_33;
-constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_32;
-constexpr gpio_num_t GPIO_CLK = GPIO_NUM_31;
+constexpr gpio_num_t GPIO_CS = GPIO_NUM_54;
+constexpr gpio_num_t GPIO_RST = GPIO_NUM_19;
+constexpr gpio_num_t GPIO_RS = GPIO_NUM_18; // LCD_RS (D/C)
+constexpr gpio_num_t GPIO_MOSI = GPIO_NUM_16;
+constexpr gpio_num_t GPIO_CLK = GPIO_NUM_15;
 
-constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_29;
-constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_28;
-constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_27;
-constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_26;
+constexpr gpio_num_t GPIO_CTP_SCL = GPIO_NUM_14;
+constexpr gpio_num_t GPIO_CTP_RST = GPIO_NUM_6;
+constexpr gpio_num_t GPIO_CTP_SDA = GPIO_NUM_5;
+constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
@@ -128,6 +127,11 @@ static void upload_task(void *arg)
 
 extern "C" void app_main(void)
 {
+#ifdef TEST
+    iot_test();
+#endif
+
+#ifndef TEST
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
@@ -230,11 +234,9 @@ extern "C" void app_main(void)
 
     start_sensor_task(&guider_ui);
 
-    NVS_init::nvs_init();
-    IOT::Wifi::get_instance().init();
-    IOT::Wifi::get_instance().connect(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWORD);
+    ETH::Ethernet::instance().init();
 
-    if (IOT::Wifi::get_instance().status() & IOT::WIFI_CONNECTED_BIT)
+    if (ETH::Ethernet::instance().status())
     {
         IOT::ntp_time_sync();
 
@@ -256,4 +258,5 @@ extern "C" void app_main(void)
         LvglPort::tick();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+#endif
 }
