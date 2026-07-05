@@ -2,9 +2,6 @@ set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
          "sensors/sensor.c"
-         "sensors/sensor_task.cpp"
-         "inference_task/inference_task.cpp"
-         "lvgl_port/lvgl_port.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
          "ui/gui_guider.c"
@@ -16,6 +13,9 @@ set(srcs "main.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
+         "process.cpp"
+         "cam/cam.cpp"
+         "frontend.cpp"
          "tcd/tcd.cpp")
 set(requires esp_lcd
              driver
@@ -42,14 +42,13 @@ set(requires esp_lcd
              ip101)
 set(include_dirs "."
                  "lcd"
-                 "lvgl_port"
                  "ui"
-                 "inference_task"
                  "yolo26"
                  "sensors"
                  "iot"
                  "tcd"
-                 "sdcard")
+                 "sdcard"
+                 "cam")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

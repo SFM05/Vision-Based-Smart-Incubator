@@ -1,6 +1,6 @@
 #include "sdkconfig.h"
 
-#if CONFIG_SD_CARD_SOIO_MOD 
+#if CONFIG_SD_CARD_SOIO_MOD
 #include "driver/sdmmc_default_configs.h"
 #include "driver/sdmmc_host.h"
 #endif
@@ -61,7 +61,7 @@ namespace sdcard
         ESP_LOGI(TAG, "Adjust voltage of LDO_VO4 to 3.3V.");
 
         sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-        host.unaligned_multi_block_rw_max_chunk_size = 8;
+        host.unaligned_multi_block_rw_max_chunk_size = 2;
         spi_bus_config_t bus_cfg{};
         bus_cfg.mosi_io_num = GPIO_NUM_44; // CMD
         bus_cfg.miso_io_num = GPIO_NUM_39; // D0

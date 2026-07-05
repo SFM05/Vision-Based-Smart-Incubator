@@ -28,7 +28,7 @@ namespace fs = std::filesystem;
 #include "iot_utils.hpp"
 
 static const char *TAG = "iot_utils";
-constexpr size_t HTTP_BUFFER_SIZE = 4096;
+constexpr size_t HTTP_BUFFER_SIZE = 1024;
 static auto esp_deleter = [](uint8_t *ptr)
 { heap_caps_free(ptr); };
 using esp_deleter_type = std::function<void(uint8_t *)>;
@@ -141,7 +141,10 @@ namespace IOT
         return (status_code == 200 || status_code == 201) ? ESP_OK : ESP_FAIL;
     }
 
-    esp_err_t upload_file(const char *url, const char *path)
+    esp_err_t upload_file(const char *url,
+                          const char *path,
+                          uint8_t *buffer,
+                          size_t size)
     {
         fs::path filename{path};
 
@@ -186,23 +189,28 @@ namespace IOT
             return err;
         }
 
-        auto buffer = std::unique_ptr<uint8_t[], decltype(esp_deleter)>{
-            static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE, MALLOC_CAP_SPIRAM)),
-            std::move(esp_deleter)};
+        bool need_free = false;
+        if (buffer == nullptr) [[unlikely]]
+        {
+            buffer = static_cast<uint8_t *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+            need_free = true;
+        }
         size_t total_posted = 0;
         do
         {
             int read_size = std::min(HTTP_BUFFER_SIZE, filesize - total_posted);
-            file.read(reinterpret_cast<char *>(buffer.get()), read_size);
+            file.read(reinterpret_cast<char *>(buffer), read_size);
             if (file.gcount() == 0)
                 break;
 
             int wlen = esp_http_client_write(client,
-                                             reinterpret_cast<char *>(buffer.get()),
+                                             reinterpret_cast<char *>(buffer),
                                              read_size);
             if (wlen < 0)
             {
                 ESP_LOGE(TAG, "Write failed!");
+                if (need_free) [[unlikely]]
+                    heap_caps_free(buffer);
                 return ESP_FAIL;
             }
             total_posted += wlen;
@@ -214,12 +222,14 @@ namespace IOT
         esp_http_client_perform(client);
 
         esp_http_client_cleanup(client);
+        if (need_free) [[unlikely]]
+            heap_caps_free(buffer);
         return ESP_OK;
     }
 
     esp_err_t report_env(float temp, double hum, uint16_t co2)
     {
-        if (!MQTT::MQTT::get_instance().mqtt_handle())
+        if (!MQTT::MQTT::instance().mqtt_handle())
         {
             return ESP_FAIL;
         }
@@ -237,12 +247,12 @@ namespace IOT
         cJSON_AddNumberToObject(root, "temp", temp);
         cJSON_AddNumberToObject(root, "hum", hum);
         cJSON_AddNumberToObject(root, "co2", co2);
-        char *json_str = cJSON_Print(root);
+        char *json_str = cJSON_PrintUnformatted(root);
 
         uint8_t mac[6];
         esp_efuse_mac_get_default(mac);
-        int id = esp_mqtt_client_publish(MQTT::MQTT::get_instance().mqtt_handle(),
-                                         std::format("device/{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}/data", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]).c_str(),
+        int id = esp_mqtt_client_publish(MQTT::MQTT::instance().mqtt_handle(),
+                                         std::format("device/{}/data", get_mac()).c_str(),
                                          json_str,
                                          0,
                                          1,

@@ -1,23 +1,27 @@
-#include "cJSON.h"
+#include "dl_detect_define.hpp"
+#include "dl_image_define.hpp"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_err.h"
-#include "esp_lcd_panel_ops.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
-
-#include "dl_image_jpeg.hpp"
+#include <vector>
 
 #include "ft6336_driver.hpp"
-#include "inference_task/inference_task.hpp"
-#include "lvgl_port/lvgl_port.hpp"
-#include "sensors/sensor_task.hpp"
+#include "hal/lv_hal_disp.h"
+#include "hal/spi_types.h"
+#include "sensor.h"
 #include "soc/gpio_num.h"
 #include "st7796_driver.hpp"
 #include "ui/gui_guider.h"
+#include "yolo26.hpp"
 
 extern "C"
 {
@@ -26,11 +30,15 @@ extern "C"
 #include "ov5647.h"
 }
 
+#include "eth.hpp"
 #include "iot/iot_utils.hpp"
 #include "iot/mqtt.hpp"
-#include "eth.hpp"
+#include "sdcard.hpp"
 #include "sdkconfig.h"
 
+#include "cam.hpp"
+#include "frontend.hpp"
+#include "process.hpp"
 #include "tcd/tcd.h"
 
 static const char *TAG = "main";
@@ -57,101 +65,59 @@ constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_5;  // 加热片 PWM
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
-static void upload_task(void *arg)
+struct mqtt_event_handler_args
 {
-    char msg[512];
-    while (true)
-    {
-        if (xQueueReceive(MQTT::MQTT::get_instance().m_upload_queue, msg,
-                          pdMS_TO_TICKS(60000)) == pdTRUE)
-        {
-            ESP_LOGI(TAG, "Upload message received");
+    QueueHandle_t &upload_feedback_queue;
+};
+void mqtt_event_handler(void *argv,
+                        esp_event_base_t base,
+                        int32_t event_id,
+                        void *event_data);
 
-            cJSON *root = cJSON_Parse(msg);
-            if (!root)
-            {
-                ESP_LOGW(TAG, "Failed to parse upload message");
-                continue;
-            }
-
-            cJSON *url_item = cJSON_GetObjectItem(root, "url");
-            if (!url_item)
-            {
-                ESP_LOGW(TAG, "No URL in upload message");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            const char *url = url_item->valuestring;
-            ESP_LOGI(TAG, "Uploading to: %s", url);
-
-            uint8_t *rgb_buf;
-            size_t rgb_size;
-            if (inference_get_raw_snapshot(&rgb_buf, &rgb_size) != ESP_OK)
-            {
-                ESP_LOGW(TAG, "Failed to get raw snapshot");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            dl::image::img_t img = {
-                .data = rgb_buf,
-                .width = 640,
-                .height = 640,
-                .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888};
-            dl::image::jpeg_img_t jpeg = dl::image::hw_encode_jpeg(img, 85);
-            heap_caps_free(rgb_buf);
-
-            if (!jpeg.data)
-            {
-                ESP_LOGE(TAG, "JPEG encoding failed");
-                cJSON_Delete(root);
-                continue;
-            }
-
-            esp_err_t err = IOT::upload_file(url, jpeg.data, jpeg.data_len);
-            if (err == ESP_OK)
-            {
-                ESP_LOGI(TAG, "Upload successful (%zu bytes)", jpeg.data_len);
-            }
-            else
-            {
-                ESP_LOGE(TAG, "Upload failed");
-            }
-
-            free(jpeg.data);
-            cJSON_Delete(root);
-        }
-    }
+static SemaphoreHandle_t touch_sem;
+void IRAM_ATTR touch_isr(esp_lcd_touch_s *arg)
+{
+    BaseType_t woken = pdFALSE;
+    gpio_intr_disable(GPIO_CTP_INT);
+    xSemaphoreGiveFromISR(touch_sem, &woken);
+    if (woken)
+        portYIELD_FROM_ISR();
 }
+void touch_task(void *argv);
 
 extern "C" void app_main(void)
 {
-#ifdef TEST
-    iot_test();
-#endif
-
-#ifndef TEST
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
-    esp_task_wdt_config_t twdt_cfg = {.timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = false};
-    esp_task_wdt_init(&twdt_cfg);
-
-    LCD::ST7796 panel{SPI2_HOST, W, H};
+    LCD::ST7796 panel{SPI3_HOST, W, H};
     panel.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
     panel.set_io_cfg(GPIO_CS, GPIO_RS, CLK_FREQUENCY);
     panel.set_panel_cfg(GPIO_RST);
     ESP_ERROR_CHECK(panel.spi_init());
     ESP_ERROR_CHECK(panel.io_init());
     ESP_ERROR_CHECK(panel.panel_init());
+    panel.set_swap(true);
     ESP_LOGI(TAG, "LCD ready");
 
+    // touch_sem = xSemaphoreCreateBinary();
+    // xTaskCreate(touch_task,
+    //             "Touch",
+    //             6144,
+    //             nullptr,
+    //             4,
+    //             nullptr);
     LCD::FT6336 touch{W, H};
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
-    touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
+    touch.set_touch_config(GPIO_CTP_RST,
+                           GPIO_CTP_INT,
+                           nullptr,
+                           true,
+                           false,
+                           true);
     ESP_ERROR_CHECK(touch.i2c_init());
-    ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+    // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
+    // ESP_ERROR_CHECK(sensors_driver_init(touch.i2c_handle()));
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK)
@@ -208,55 +174,251 @@ extern "C" void app_main(void)
         }
     }
 
-    tcd_start(GPIO_TCD_SDA, GPIO_TCD_SCL, GPIO_TCD_HEATER);
-    ESP_LOGI(TAG, "TCD Control Started");
+    // tcd_start(GPIO_TCD_SDA, GPIO_TCD_SCL, GPIO_TCD_HEATER);
+    // ESP_LOGI(TAG, "TCD Control Started");
 
-    ESP_ERROR_CHECK(LvglPort::init(
-        panel.panel_handle(),
-        panel.io_handle(),
-        touch.touch_handle(),
-        W, H));
+    init(panel.panel_handle(),
+         panel.io_handle(),
+         touch.touch_handle(),
+         W, H);
 
-    {
-        MirrorConfig cfg;
-        cfg.mv = true;
-        cfg.mx = false;
-        cfg.my = false;
-        panel.set_mirror(cfg);
-        LvglPort::set_mirror(cfg);
-    }
-    ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
-             panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
+    // {
+    //     MirrorConfig cfg;
+    //     cfg.mv = true;
+    //     cfg.mx = false;
+    //     cfg.my = false;
+    //     panel.set_mirror(cfg);
+    //     LvglPort::set_mirror(cfg);
+    // }
+    // ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
+    //          panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
 
     setup_ui(&guider_ui);
-    LvglPort::refresh();
+    // LvglPort::refresh();
+    lv_refr_now(lv_disp_get_default());
     ESP_LOGI(TAG, "UI ready");
 
-    start_sensor_task(&guider_ui);
+    CAM::camera::instance().init_camera();
+
+    sdcard::SDcard::instance().init();
 
     ETH::Ethernet::instance().init();
 
-    if (ETH::Ethernet::instance().status())
-    {
-        IOT::ntp_time_sync();
+    // QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
+    // mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
+    // if (ETH::Ethernet::instance().status())
+    // {
+    //     IOT::ntp_time_sync();
 
-        MQTT::MQTT::get_instance().set_mqtt_cfg(
-            CONFIG_IOT_MQTT_SERVER,
-            CONFIG_IOT_MQTT_USERNAME,
-            CONFIG_IOT_MQTT_PASSWORD);
-        MQTT::MQTT::get_instance().mqtt_init();
+    //     MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
+    //                                             CONFIG_IOT_MQTT_USERNAME,
+    //                                             CONFIG_IOT_MQTT_PASSWORD);
+    //     MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
+    //                                          &mqtt_event_args);
 
-        xTaskCreate(upload_task, "upload_task", 16384, NULL, 5, NULL);
-        ESP_LOGI(TAG, "MQTT + upload task started");
-    }
+    //     // ESP_LOGI(TAG, "MQTT + upload task started");
+    // }
 
-    start_inference_task(&guider_ui);
-    ESP_LOGI(TAG, "Inference task started");
+    // 启动捕捉任务
+    static dl::image::img_t cropped_buf{
+        nullptr,
+        640,
+        640,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
+    cropped_buf.data = heap_caps_malloc(cropped_buf.bytes(),
+                                        MALLOC_CAP_SPIRAM);
+    static SemaphoreHandle_t capture_inference_mutex = xSemaphoreCreateMutex();
+    static QueueHandle_t capture_inference_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    static SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
+    static QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    static SemaphoreHandle_t flush_screen = xSemaphoreCreateBinary();
+    static capture_process_args capture_args{
+        cropped_buf,
+        capture_inference_queue,
+        inference_end,
+        capture_inference_mutex,
+        capture_request_queue,
+        flush_screen};
+    xTaskCreate(capture_process,
+                "Capture",
+                4096,
+                &capture_args,
+                1,
+                nullptr);
+
+    // 启动推理任务
+    static dl::Model *model = new dl::Model("yolo26",
+                                            fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
+    static const char *names[] = {"Colony"};
+    constexpr int TARGET_K = 128;
+    constexpr float CONF_THRESH = 0.25f;
+    static YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
+    static std::vector<dl::detect::result_t> result;
+    result.reserve(TARGET_K);
+    static inference_process_args inference_args{
+        cropped_buf,
+        model,
+        processor,
+        result,
+        capture_inference_queue,
+        inference_end,
+        capture_inference_mutex};
+    xTaskCreate(inference_process,
+                "Inference",
+                4096,
+                &inference_args,
+                1,
+                nullptr);
+
+    // 启动上传请求任务
+    upload_request_process_args upload_request_args{
+        capture_request_queue,
+        result};
+    xTaskCreate(upload_request_process,
+                "Upload Request",
+                5120,
+                &upload_request_args,
+                1,
+                nullptr);
+
+    // // 启动真实上传任务
+    // constexpr size_t HTTP_BUFFER_SIZE = 1024;
+    // static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
+    //                                                           MALLOC_CAP_SPIRAM));
+    // static upload_process_args upload_args{
+    //     upload_feed_back_queue,
+    //     buffer,
+    //     HTTP_BUFFER_SIZE};
+    // xTaskCreate(upload_process,
+    //             "Upload",
+    //             8192,
+    //             &upload_args,
+    //             1,
+    //             nullptr);
+
+    // // 启动环境检测任务
+    // xTaskCreate(report_env_process,
+    //             "ReporEnv",
+    //             2048,
+    //             nullptr,
+    //             1,
+    //             nullptr);
+
+    static dl::image::img_t screen_buffer{
+        nullptr,
+        320,
+        320,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB565BE};
+    screen_buffer.data = heap_caps_malloc(screen_buffer.bytes(), MALLOC_CAP_SPIRAM);
+    static image_display_process_args image_display_args{
+        result,
+        cropped_buf,
+        screen_buffer,
+        flush_screen};
+    xTaskCreate(image_display_process,
+                "Image Display",
+                4096,
+                &image_display_args,
+                1,
+                nullptr);
 
     while (true)
     {
-        LvglPort::tick();
+        lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
-#endif
+}
+
+void touch_task(void *argv)
+{
+    while (true)
+    {
+        xSemaphoreTake(touch_sem, portMAX_DELAY); // 等待触摸中断
+        // vTaskDelay(pdMS_TO_TICKS(10)); // 消抖+等待 FT6336 数据稳定
+        lv_timer_handler(); // 处理触摸 + 刷新
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        gpio_intr_enable(GPIO_CTP_INT);
+    }
+}
+
+void mqtt_event_handler(void *argv,
+                        esp_event_base_t base,
+                        int32_t event_id,
+                        void *event_data)
+{
+    const char *TAG = "MQTT event";
+    esp_mqtt_event_handle_t event = static_cast<esp_mqtt_event_handle_t>(event_data);
+    // esp_mqtt_client_handle_t client = event->client;
+    // int msg_id;
+
+    auto args = static_cast<mqtt_event_handler_args *>(argv);
+
+    switch (static_cast<esp_mqtt_event_id_t>(event_id))
+    {
+    case MQTT_EVENT_CONNECTED:
+        ESP_LOGI(TAG, "connected");
+        esp_mqtt_client_subscribe_single(MQTT::MQTT::instance().mqtt_handle(),
+                                         std::format("server/{}/#", IOT::get_mac()).c_str(),
+                                         1);
+        break;
+
+    case MQTT_EVENT_DISCONNECTED:
+        ESP_LOGW(TAG, "disconnected");
+        break;
+
+    case MQTT_EVENT_SUBSCRIBED:
+        ESP_LOGI(TAG, "subscribed, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
+        // msg_id = esp_mqtt_client_publish(client, "topic/qos0", "data", 0, 0, 0);
+        // ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        break;
+
+    case MQTT_EVENT_UNSUBSCRIBED:
+        ESP_LOGI(TAG, "unsubscribed, msg_id=%d", event->msg_id);
+        break;
+
+    case MQTT_EVENT_PUBLISHED:
+        ESP_LOGI(TAG, "publish, msg_id=%d", event->msg_id);
+        break;
+
+    case MQTT_EVENT_DATA:
+        ESP_LOGI(TAG, "receive data");
+        // printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        {
+            size_t len = event->topic_len;
+            if (len >= 7 && memcmp(event->topic + len - 7, "/upload", 7) == 0)
+            {
+                char url[512] = {};
+                int copy_len = (event->data_len < 512) ? event->data_len : 512;
+                memcpy(url, event->data, copy_len);
+
+                if (args->upload_feedback_queue)
+                    xQueueSend(args->upload_feedback_queue, url, 0); // 0 = 不阻塞，满了就丢弃
+            }
+        }
+        break;
+
+    case MQTT_EVENT_ERROR:
+        ESP_LOGE(TAG, "error");
+        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
+        {
+            ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
+            ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event->error_handle->esp_tls_stack_err);
+            ESP_LOGE(TAG, "Last captured errno : %d (%s)", event->error_handle->esp_transport_sock_errno,
+                     strerror(event->error_handle->esp_transport_sock_errno));
+        }
+        else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED)
+        {
+            ESP_LOGE(TAG, "Connection refused error: 0x%x", event->error_handle->connect_return_code);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
+        }
+        break;
+
+    default:
+        ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+        break;
+    }
 }
