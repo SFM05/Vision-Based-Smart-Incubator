@@ -12,8 +12,6 @@
 #include "esp_err.h"
 #include "esp_vfs_fat.h"
 
-#include "diskio_impl.h"
-
 #include "sdcard.hpp"
 
 static const char *TAG = "SD card";
@@ -87,16 +85,6 @@ namespace sdcard
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Failed to initialize SD: %s", esp_err_to_name(err));
-            BYTE pdrv = 0xFF;
-            esp_err_t ret = ff_diskio_get_drive(&pdrv);
-            if (ret != ESP_OK)
-            {
-                ESP_LOGE(TAG,"All %d volumes are in use!\n", FF_VOLUMES);
-            }
-            else
-            {
-                ESP_LOGE(TAG,"Next free drive number: %d\n", pdrv);
-            }
             return err;
         }
 #endif

@@ -15,7 +15,8 @@ set(srcs "main.cpp"
          "sdcard/sdcard.cpp"
          "process.cpp"
          "cam/cam.cpp"
-         "frontend.cpp")
+         "frontend.cpp"
+         "tcd/tcd.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -45,6 +46,7 @@ set(include_dirs "."
                  "yolo26"
                  "sensors"
                  "iot"
+                 "tcd"
                  "sdcard"
                  "cam")
 
