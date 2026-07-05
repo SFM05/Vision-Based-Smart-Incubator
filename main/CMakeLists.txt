@@ -16,7 +16,7 @@ set(srcs "main.cpp"
          "iot/private/utils.c"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
-         "test.cpp")
+         "tcd/tcd.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -48,6 +48,7 @@ set(include_dirs "."
                  "yolo26"
                  "sensors"
                  "iot"
+                 "tcd"
                  "sdcard")
 
 # This is added before the registery for esp-dl
