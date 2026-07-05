@@ -1,8 +1,8 @@
-#include "esp_log.h"
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
-#include "driver/i2c_master.h"
-#include "driver/gpio.h"
+#include "esp_log.h"
 
 #include "ft6336_driver.hpp"
 
@@ -55,7 +55,10 @@ namespace LCD
     }
     void FT6336::set_touch_config(gpio_num_t rst_io_num,
                                   gpio_num_t int_io_num,
-                                  esp_lcd_touch_interrupt_callback_t iqr_handle)
+                                  esp_lcd_touch_interrupt_callback_t iqr_handle,
+                                  bool mirror_x,
+                                  bool mirror_y,
+                                  bool swap_xy)
     {
         m_touch_cfg.x_max = m_height;
         m_touch_cfg.y_max = m_width;
@@ -66,9 +69,9 @@ namespace LCD
         m_touch_cfg.levels.reset = 0;
         m_touch_cfg.interrupt_callback = iqr_handle;
 
-        m_touch_cfg.flags.swap_xy = 0;
-        m_touch_cfg.flags.mirror_x = 0;
-        m_touch_cfg.flags.mirror_y = 0;
+        m_touch_cfg.flags.mirror_x = mirror_x;
+        m_touch_cfg.flags.mirror_y = mirror_y;
+        m_touch_cfg.flags.swap_xy = swap_xy;
     }
 
     esp_err_t FT6336::i2c_init()
@@ -98,7 +101,8 @@ namespace LCD
          * @brief 用自己的复位（100ms）取代库默认的 10ms
          */
         gpio_num_t rst_save = m_touch_cfg.rst_gpio_num;
-        if (rst_save != GPIO_NUM_NC) {
+        if (rst_save != GPIO_NUM_NC)
+        {
             manual_reset(rst_save, m_touch_cfg.levels.reset, 100);
             m_touch_cfg.rst_gpio_num = GPIO_NUM_NC;
         }
@@ -106,7 +110,8 @@ namespace LCD
         esp_err_t err;
         err = esp_lcd_touch_new_i2c_ft5x06(m_io_handle, &m_touch_cfg, &m_touch_handle);
 
-        if (rst_save != GPIO_NUM_NC) {
+        if (rst_save != GPIO_NUM_NC)
+        {
             m_touch_cfg.rst_gpio_num = rst_save;
         }
         if (err != ESP_OK) [[unlikely]]
@@ -116,15 +121,14 @@ namespace LCD
         }
 
         /**
-     * @brief 中断引脚需要上拉，否则会一直唤起中断
-     */
+         * @brief 中断引脚需要上拉，否则会一直唤起中断
+         */
         err = gpio_pullup_en(m_touch_cfg.int_gpio_num);
         if (err != ESP_OK) [[unlikely]]
         {
             ESP_LOGE(TAG, "Set pull mode for interrupt pin failed.");
             return err;
         }
-        
 
         return ESP_OK;
     }

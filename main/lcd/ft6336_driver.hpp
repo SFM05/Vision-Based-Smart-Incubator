@@ -1,8 +1,8 @@
 #pragma once
 
+#include "driver/i2c_master.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_ft5x06.h"
-#include "driver/i2c_master.h"
 
 namespace LCD
 {
@@ -42,7 +42,10 @@ namespace LCD
          */
         void set_touch_config(gpio_num_t rst_io_num,
                               gpio_num_t int_io_num,
-                              esp_lcd_touch_interrupt_callback_t iqr_handle = nullptr);
+                              esp_lcd_touch_interrupt_callback_t iqr_handle = nullptr,
+                              bool mirror_x = false,
+                              bool mirror_y = false,
+                              bool swap_xy = false);
 
         /**
          * @brief 初始化I2C
@@ -52,32 +55,32 @@ namespace LCD
         esp_err_t i2c_init();
         /**
          * @brief 初始化触摸io
-         * 
+         *
          * @return esp_err_t 是否初始化成功
          */
         esp_err_t io_init();
         /**
          * @brief 获取触摸
-         * 
+         *
          * @return esp_err_t 是否初始化成功
          */
         esp_err_t touch_init();
 
         /**
          * @brief 获取I2C句柄
-         * 
+         *
          * @return i2c_master_bus_handle_t I2C句柄
          */
         i2c_master_bus_handle_t i2c_handle() const;
         /**
          * @brief 获取触摸io句柄
-         * 
+         *
          * @return esp_lcd_panel_io_handle_t 触摸io句柄
          */
         esp_lcd_panel_io_handle_t io_handle() const;
         /**
          * @brief 获取触摸句柄
-         * 
+         *
          * @return esp_lcd_touch_handle_t 触摸句柄
          */
         esp_lcd_touch_handle_t touch_handle() const;

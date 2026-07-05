@@ -1,9 +1,9 @@
 #include "dl_detect_define.hpp"
 #include "dl_image_define.hpp"
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
-#include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
@@ -15,11 +15,9 @@
 #include <vector>
 
 #include "ft6336_driver.hpp"
+#include "hal/lv_hal_disp.h"
 #include "hal/spi_types.h"
-#include "inference_task/inference_task.hpp"
-#include "lvgl_port/lvgl_port.hpp"
 #include "sensor.h"
-#include "sensors/sensor_task.hpp"
 #include "soc/gpio_num.h"
 #include "st7796_driver.hpp"
 #include "ui/gui_guider.h"
@@ -38,9 +36,9 @@ extern "C"
 #include "sdcard.hpp"
 #include "sdkconfig.h"
 
-// #define TEST
-#include "process.hpp"
 #include "cam.hpp"
+#include "frontend.hpp"
+#include "process.hpp"
 
 static const char *TAG = "main";
 
@@ -71,6 +69,17 @@ void mqtt_event_handler(void *argv,
                         int32_t event_id,
                         void *event_data);
 
+static SemaphoreHandle_t touch_sem;
+void IRAM_ATTR touch_isr(esp_lcd_touch_s *arg)
+{
+    BaseType_t woken = pdFALSE;
+    gpio_intr_disable(GPIO_CTP_INT);
+    xSemaphoreGiveFromISR(touch_sem, &woken);
+    if (woken)
+        portYIELD_FROM_ISR();
+}
+void touch_task(void *argv);
+
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
@@ -83,14 +92,27 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(panel.spi_init());
     ESP_ERROR_CHECK(panel.io_init());
     ESP_ERROR_CHECK(panel.panel_init());
+    panel.set_swap(true);
     ESP_LOGI(TAG, "LCD ready");
 
+    // touch_sem = xSemaphoreCreateBinary();
+    // xTaskCreate(touch_task,
+    //             "Touch",
+    //             6144,
+    //             nullptr,
+    //             4,
+    //             nullptr);
     LCD::FT6336 touch{W, H};
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
-    touch.set_touch_config(GPIO_CTP_RST, GPIO_CTP_INT);
+    touch.set_touch_config(GPIO_CTP_RST,
+                           GPIO_CTP_INT,
+                           nullptr,
+                           true,
+                           false,
+                           true);
     ESP_ERROR_CHECK(touch.i2c_init());
     // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
-    ESP_ERROR_CHECK(sensors_driver_init(touch.i2c_handle()));
+    // ESP_ERROR_CHECK(sensors_driver_init(touch.i2c_handle()));
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK)
@@ -147,26 +169,25 @@ extern "C" void app_main(void)
         }
     }
 
+    init(panel.panel_handle(),
+         panel.io_handle(),
+         touch.touch_handle(),
+         W, H);
 
-    ESP_ERROR_CHECK(LvglPort::init(
-        panel.panel_handle(),
-        panel.io_handle(),
-        touch.touch_handle(),
-        W, H));
-
-    {
-        MirrorConfig cfg;
-        cfg.mv = true;
-        cfg.mx = false;
-        cfg.my = false;
-        panel.set_mirror(cfg);
-        LvglPort::set_mirror(cfg);
-    }
-    ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
-             panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
+    // {
+    //     MirrorConfig cfg;
+    //     cfg.mv = true;
+    //     cfg.mx = false;
+    //     cfg.my = false;
+    //     panel.set_mirror(cfg);
+    //     LvglPort::set_mirror(cfg);
+    // }
+    // ESP_LOGI(TAG, "LVGL ready (mirror: MV=%d MX=%d MY=%d)",
+    //          panel.mirror().mv, panel.mirror().mx, panel.mirror().my);
 
     setup_ui(&guider_ui);
-    LvglPort::refresh();
+    // LvglPort::refresh();
+    lv_refr_now(lv_disp_get_default());
     ESP_LOGI(TAG, "UI ready");
 
     CAM::camera::instance().init_camera();
@@ -175,57 +196,58 @@ extern "C" void app_main(void)
 
     ETH::Ethernet::instance().init();
 
-    QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
-    mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
-    if (ETH::Ethernet::instance().status())
-    {
-        IOT::ntp_time_sync();
+    // QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
+    // mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
+    // if (ETH::Ethernet::instance().status())
+    // {
+    //     IOT::ntp_time_sync();
 
-        MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
-                                                CONFIG_IOT_MQTT_USERNAME,
-                                                CONFIG_IOT_MQTT_PASSWORD);
-        MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
-                                             &mqtt_event_args);
+    //     MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
+    //                                             CONFIG_IOT_MQTT_USERNAME,
+    //                                             CONFIG_IOT_MQTT_PASSWORD);
+    //     MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
+    //                                          &mqtt_event_args);
 
-        // ESP_LOGI(TAG, "MQTT + upload task started");
-    }
+    //     // ESP_LOGI(TAG, "MQTT + upload task started");
+    // }
 
     // 启动捕捉任务
-    dl::image::img_t cropped_buf{
+    static dl::image::img_t cropped_buf{
         nullptr,
         640,
         640,
         dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
     cropped_buf.data = heap_caps_malloc(cropped_buf.bytes(),
                                         MALLOC_CAP_SPIRAM);
-    SemaphoreHandle_t capture_inference_mutex = xSemaphoreCreateMutex();
-    QueueHandle_t capture_inference_queue = xQueueCreate(2, sizeof(frame_meta_data));
-    SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
-    QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
-    capture_process_args capture_args{
+    static SemaphoreHandle_t capture_inference_mutex = xSemaphoreCreateMutex();
+    static QueueHandle_t capture_inference_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    static SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
+    static QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
+    static SemaphoreHandle_t flush_screen = xSemaphoreCreateBinary();
+    static capture_process_args capture_args{
         cropped_buf,
-        // start_inference,
         capture_inference_queue,
         inference_end,
         capture_inference_mutex,
-        capture_request_queue};
-    // xTaskCreate(capture_process,
-    //             "Capture",
-    //             4096,
-    //             &capture_args,
-    //             1,
-    //             nullptr);
+        capture_request_queue,
+        flush_screen};
+    xTaskCreate(capture_process,
+                "Capture",
+                4096,
+                &capture_args,
+                1,
+                nullptr);
 
     // 启动推理任务
-    dl::Model *model = new dl::Model("yolo26",
-                                     fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
-    const char *names[] = {"Colony"};
+    static dl::Model *model = new dl::Model("yolo26",
+                                            fbs::MODEL_LOCATION_IN_FLASH_PARTITION);
+    static const char *names[] = {"Colony"};
     constexpr int TARGET_K = 128;
     constexpr float CONF_THRESH = 0.25f;
-    YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
-    std::vector<dl::detect::result_t> result;
+    static YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
+    static std::vector<dl::detect::result_t> result;
     result.reserve(TARGET_K);
-    inference_process_args inference_args{
+    static inference_process_args inference_args{
         cropped_buf,
         model,
         processor,
@@ -251,33 +273,64 @@ extern "C" void app_main(void)
                 1,
                 nullptr);
 
-    // 启动真实上传任务
-    constexpr size_t HTTP_BUFFER_SIZE = 1024;
-    uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
-                                                              MALLOC_CAP_SPIRAM));
-    upload_process_args upload_args{
-        upload_feed_back_queue,
-        buffer,
-        HTTP_BUFFER_SIZE};
-    xTaskCreate(upload_process,
-                "Upload",
-                8192,
-                &upload_args,
-                1,
-                nullptr);
+    // // 启动真实上传任务
+    // constexpr size_t HTTP_BUFFER_SIZE = 1024;
+    // static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
+    //                                                           MALLOC_CAP_SPIRAM));
+    // static upload_process_args upload_args{
+    //     upload_feed_back_queue,
+    //     buffer,
+    //     HTTP_BUFFER_SIZE};
+    // xTaskCreate(upload_process,
+    //             "Upload",
+    //             8192,
+    //             &upload_args,
+    //             1,
+    //             nullptr);
 
-    // 启动环境检测任务
-    xTaskCreate(report_env_process,
-                "ReporEnv",
-                2048,
-                nullptr,
+    // // 启动环境检测任务
+    // xTaskCreate(report_env_process,
+    //             "ReporEnv",
+    //             2048,
+    //             nullptr,
+    //             1,
+    //             nullptr);
+
+    static dl::image::img_t screen_buffer{
+        nullptr,
+        320,
+        320,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB565BE};
+    screen_buffer.data = heap_caps_malloc(screen_buffer.bytes(), MALLOC_CAP_SPIRAM);
+    static image_display_process_args image_display_args{
+        result,
+        cropped_buf,
+        screen_buffer,
+        flush_screen};
+    xTaskCreate(image_display_process,
+                "Image Display",
+                4096,
+                &image_display_args,
                 1,
                 nullptr);
 
     while (true)
     {
-        // LvglPort::tick();
+        lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+void touch_task(void *argv)
+{
+    while (true)
+    {
+        xSemaphoreTake(touch_sem, portMAX_DELAY); // 等待触摸中断
+        // vTaskDelay(pdMS_TO_TICKS(10)); // 消抖+等待 FT6336 数据稳定
+        lv_timer_handler(); // 处理触摸 + 刷新
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        gpio_intr_enable(GPIO_CTP_INT);
     }
 }
 

@@ -3,8 +3,9 @@
 #include <inttypes.h>
 
 #include "driver/spi_master.h"
-#include "esp_lcd_panel_ops.h"
+#include "esp_err.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
 #include "esp_lcd_st7796.h"
 
 #include "display_config.hpp"
@@ -22,8 +23,6 @@ namespace LCD
         esp_lcd_panel_io_spi_config_t m_io_cfg;
         esp_lcd_panel_handle_t m_panel_handle;
         esp_lcd_panel_dev_config_t m_panel_cfg;
-
-        MirrorConfig m_mirror;
 
     public:
         /**
@@ -72,7 +71,7 @@ namespace LCD
         esp_err_t spi_init();
         /**
          * @brief 初始化io
-         * 
+         *
          * @return esp_err_t 是否初始化成功
          */
         esp_err_t io_init();
@@ -96,24 +95,7 @@ namespace LCD
          */
         esp_lcd_panel_handle_t panel_handle();
 
-        /**
-         * @brief 设置屏幕镜像（写入 MADCTL 寄存器）
-         *
-         * 修改后必须同步调用 LvglPort::set_mirror() 更新触摸映射。
-         *
-         * @param cfg 镜像配置（mv/mx/my 位）
-         *
-         * @code
-         *   panel.set_mirror({.mv=true, .mx=true, .my=false});   // 仅 X 镜像
-         *   LvglPort::set_mirror(panel.mirror());                 // 同步触摸
-         * @endcode
-         */
-        void set_mirror(const MirrorConfig& cfg);
-        /**
-         * @brief 获取当前镜像配置
-         *
-         * @return const MirrorConfig& 当前镜像配置引用
-         */
-        const MirrorConfig& mirror() const { return m_mirror; }
+        esp_err_t set_mirror(bool mirror_x, bool mirror_y);
+        esp_err_t set_swap(bool swap_xy);
     };
 } /* namespace LCD */

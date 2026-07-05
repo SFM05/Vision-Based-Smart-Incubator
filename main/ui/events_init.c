@@ -1,5 +1,4 @@
 #include "events_init.h"
-#include "inference_task/inference_task.hpp"
 #include <stdio.h>
 
 static void btn_param_cb(lv_event_t *e)
@@ -27,8 +26,6 @@ static void slider_interval_cb(lv_event_t *e)
     int sec = interval_table[idx];
 
     lv_slider_set_value(ui->screen_2_slider_1, idx, LV_ANIM_OFF);
-
-    inference_set_interval_seconds(sec);
 
     char buf[32];
     if (sec < 60)

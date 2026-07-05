@@ -77,7 +77,11 @@ void capture_process(void *argv)
         // 接管帧缓冲区
         auto state = ioctl(CAM::camera::instance().fd(), VIDIOC_DQBUF, &cam_buf);
         if (state < 0) // 缓冲帧未准备完毕
+        {
+            ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf);
             continue;
+        }
+
         if (cam_buf.index >= static_cast<uint32_t>(CAM::camera::instance().num_bufs()))
         {
             ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf);
@@ -134,8 +138,9 @@ void capture_process(void *argv)
         xSemaphoreTake(args->inference_end, portMAX_DELAY);
         // 通知上传任务
         xQueueSend(args->request_upload, &data, portMAX_DELAY);
+        xSemaphoreGive(args->flush_screen);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
-        vTaskDelay(pdMS_TO_TICKS(30000));
+        vTaskDelay(pdMS_TO_TICKS(15000));
     }
 }
 
@@ -291,6 +296,7 @@ void report_env_process(void *argv)
     const char *TAG = "report env";
     sensors_data_t data;
     esp_err_t err;
+    ESP_LOGI(TAG,"report env process start.");
 
     while (true)
     {
@@ -310,6 +316,7 @@ void report_env_process(void *argv)
                      data.eco2_ppm ? "OK" : "FAIL",
                      data.temperature_c != 0 ? "OK" : "FAIL");
         }
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

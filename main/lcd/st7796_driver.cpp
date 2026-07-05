@@ -1,15 +1,10 @@
-#include <inttypes.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "driver/gpio.h"
-#include "soc/soc_caps.h"
-#include "esp_heap_caps.h"
-#include "esp_log.h"
-#include "esp_check.h"
-#include "esp_lcd_panel_ops.h"
+#include "esp_err.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #include "esp_lcd_st7796.h"
 #include "st7796_driver.hpp"
@@ -116,8 +111,8 @@ namespace LCD
             return err;
         }
 
-        uint8_t madctl = m_mirror.to_madctl();
-        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
+        // uint8_t madctl = m_mirror.to_madctl();
+        // esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
 
         err = esp_lcd_panel_disp_on_off(m_panel_handle, true);
         if (err != ESP_OK) [[unlikely]]
@@ -137,11 +132,12 @@ namespace LCD
         return m_panel_handle;
     }
 
-    void ST7796::set_mirror(const MirrorConfig& cfg)
+    esp_err_t ST7796::set_mirror(bool mirror_x, bool mirror_y)
     {
-        m_mirror = cfg;
-        uint8_t madctl = m_mirror.to_madctl();
-        esp_lcd_panel_io_tx_param(m_io_handle, 0x36, &madctl, 1);
+        return esp_lcd_panel_mirror(m_panel_handle, mirror_x, mirror_y);
     }
-
+    esp_err_t ST7796::set_swap(bool swap_xy)
+    {
+        return esp_lcd_panel_swap_xy(m_panel_handle, swap_xy);
+    }
 } /* namespace LCD */

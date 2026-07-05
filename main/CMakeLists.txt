@@ -2,9 +2,6 @@ set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
          "sensors/sensor.c"
-         "sensors/sensor_task.cpp"
-         "inference_task/inference_task.cpp"
-         "lvgl_port/lvgl_port.cpp"
          "yolo26/yolo_inference.cpp"
          "yolo26/image_auto.cpp"
          "ui/gui_guider.c"
@@ -17,7 +14,8 @@ set(srcs "main.cpp"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
          "process.cpp"
-         "cam/cam.cpp")
+         "cam/cam.cpp"
+         "frontend.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -43,9 +41,7 @@ set(requires esp_lcd
              ip101)
 set(include_dirs "."
                  "lcd"
-                 "lvgl_port"
                  "ui"
-                 "inference_task"
                  "yolo26"
                  "sensors"
                  "iot"

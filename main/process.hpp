@@ -19,6 +19,7 @@ struct capture_process_args
     SemaphoreHandle_t &inference_end;
     SemaphoreHandle_t &inference_capture_mutex;
     SemaphoreHandle_t &request_upload;
+    SemaphoreHandle_t &flush_screen;
 };
 struct frame_meta_data
 {
