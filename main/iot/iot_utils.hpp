@@ -19,7 +19,7 @@ namespace IOT
                           uint8_t *buffer,
                           size_t size);
 
-    esp_err_t report_env(float temp, double hum, uint16_t co2);
+    esp_err_t report_env(float temp, float hum, uint16_t co2);
 
     inline std::string get_mac()
     {

@@ -115,7 +115,7 @@ static void pwm_set_percent(float percent)
 }
 
 // ================= 硬件初始化 =================
-static void tcd_hw_init(i2c_master_bus_handle_t i2c_bus, gpio_num_t heater)
+static void tcd_hw_init(gpio_num_t heater)
 {
     // 1. 初始化 PWM (LED Controller) - 使用逐个赋值避免 C++ 编译顺序错误
     ledc_timer_config_t ledc_timer = {};
@@ -154,9 +154,9 @@ static void tcd_loop_task(void *pvParameters)
     while (1)
     {
         sensors_data_t data;
-        bool read_ok = (sensors_driver_read(&data) == ESP_OK && data.is_valid);
+        sensors_driver_read(&data);
 
-        if (read_ok)
+        if (data.sht_valid)
         {
             temp = data.temperature_c;
             float error = pid.setpoint - temp;
@@ -224,10 +224,10 @@ void tcd_set_target(float target_c)
     ESP_LOGI(TAG, "Target set to %.1f°C", target_c);
 }
 
-void tcd_start(i2c_master_bus_handle_t i2c_bus, gpio_num_t heater_pin)
+void tcd_start(gpio_num_t heater_pin)
 {
     ESP_LOGI(TAG, "Starting TCD System...");
-    tcd_hw_init(i2c_bus, heater_pin);
+    tcd_hw_init(heater_pin);
     xTaskCreate(tcd_loop_task,
                 "tcd_loop",
                 4096,

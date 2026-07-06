@@ -204,36 +204,60 @@ void env_display_process(void *argv)
 {
     const char *TAG = "env display";
     sensors_data_t data;
-    esp_err_t err;
+    uint8_t cnt;
 
     while (true)
     {
-        err = sensors_driver_read(&data);
-        if (err == ESP_OK && data.is_valid)
+        cnt = 0;
+        do
         {
-            lv_lock();
-            lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
-                                  "Temp: %.1f", data.temperature_c);
-            lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
-                                  "Hum: %.1f", data.humidity_rh);
-            lv_label_set_text_fmt(guider_ui.screen_1_CO2,
-                                  "CO2: %d", data.eco2_ppm);
-            lv_obj_invalidate(guider_ui.screen_1_Temperature);
-            lv_obj_invalidate(guider_ui.screen_1_Humidity);
-            lv_obj_invalidate(guider_ui.screen_1_CO2);
-            lv_refr_now(lv_disp_get_default());
-            lv_unlock();
-        }
-        else
+            sensors_driver_read(&data);
+            if (data.sht_valid)
+            {
+                lv_lock();
+                lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
+                                      "Temp: %.1f", data.temperature_c);
+                lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
+                                      "Hum: %.1f", data.humidity_rh);
+                lv_obj_invalidate(guider_ui.screen_1_Temperature);
+                lv_obj_invalidate(guider_ui.screen_1_Humidity);
+                lv_unlock();
+                break;
+            }
+            cnt++;
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } while (cnt < 5);
+        if (!data.sht_valid)
         {
             lv_lock();
             lv_label_set_text(guider_ui.screen_1_Temperature, "Temp: Err");
             lv_label_set_text(guider_ui.screen_1_Humidity, "Hum: Err");
-            lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
             lv_obj_invalidate(guider_ui.screen_1_Temperature);
             lv_obj_invalidate(guider_ui.screen_1_Humidity);
+            lv_unlock();
+        }
+
+        cnt = 0;
+        do
+        {
+            sensors_driver_read(&data);
+            if (data.sgp_valid)
+            {
+                lv_lock();
+                lv_label_set_text_fmt(guider_ui.screen_1_CO2,
+                                      "CO2: %d", data.eco2_ppm);
+                lv_obj_invalidate(guider_ui.screen_1_CO2);
+                lv_unlock();
+                break;
+            }
+            cnt++;
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } while (cnt < 5);
+        if (!data.sgp_valid)
+        {
+            lv_lock();
+            lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
             lv_obj_invalidate(guider_ui.screen_1_CO2);
-            lv_refr_now(lv_disp_get_default());
             lv_unlock();
         }
 

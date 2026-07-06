@@ -9,14 +9,16 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
+#include "led.hpp"
+#include "led_strip.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <utility>
 #include <vector>
 
 #include "ft6336_driver.hpp"
+#include "hal/gpio_types.h"
 #include "hal/lv_hal_disp.h"
 #include "hal/spi_types.h"
 #include "sensor.h"
@@ -62,7 +64,8 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_5; // 加热片 PWM
+constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
+constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
@@ -175,29 +178,30 @@ extern "C" void app_main(void)
         }
     }
 
-    // tcd_start(cam_i2c, GPIO_TCD_HEATER);
+    LED::init(GPIO_LED);
+    LED::off();
+
+    tcd_start(GPIO_TCD_HEATER);
     // ESP_LOGI(TAG, "TCD Control Started");
 
     CAM::camera::instance().init_camera();
 
     sdcard::SDcard::instance().init();
 
-    // ETH::Ethernet::instance().init();
+    ETH::Ethernet::instance().init();
 
-    // QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
-    // mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
-    // if (ETH::Ethernet::instance().status())
-    // {
-    //     IOT::ntp_time_sync();
+    QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
+    mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
+    if (ETH::Ethernet::instance().status())
+    {
+        IOT::ntp_time_sync();
 
-    //     MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
-    //                                             CONFIG_IOT_MQTT_USERNAME,
-    //                                             CONFIG_IOT_MQTT_PASSWORD);
-    //     MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
-    //                                          &mqtt_event_args);
-
-    //     // ESP_LOGI(TAG, "MQTT + upload task started");
-    // }
+        MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
+                                            CONFIG_IOT_MQTT_USERNAME,
+                                            CONFIG_IOT_MQTT_PASSWORD);
+        MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
+                                         &mqtt_event_args);
+    }
 
     // 启动捕捉任务
     static dl::image::img_t cropped_buf{
@@ -215,7 +219,7 @@ extern "C" void app_main(void)
     static std::atomic<uint32_t> capture_delay;
     capture_delay.store(30000);
     static std::atomic<bool> running = false;
-    static TaskHandle_t capture_handle=nullptr;
+    static TaskHandle_t capture_handle = nullptr;
     static capture_process_args capture_args{
         cropped_buf,
         capture_inference_queue,
@@ -267,20 +271,20 @@ extern "C" void app_main(void)
                 1,
                 nullptr);
 
-    // // 启动真实上传任务
-    // constexpr size_t HTTP_BUFFER_SIZE = 1024;
-    // static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
-    //                                                           MALLOC_CAP_SPIRAM));
-    // static upload_process_args upload_args{
-    //     upload_feed_back_queue,
-    //     buffer,
-    //     HTTP_BUFFER_SIZE};
-    // xTaskCreate(upload_process,
-    //             "Upload",
-    //             8192,
-    //             &upload_args,
-    //             1,
-    //             nullptr);
+    // 启动真实上传任务
+    constexpr size_t HTTP_BUFFER_SIZE = 1024;
+    static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
+                                                                     MALLOC_CAP_SPIRAM));
+    static upload_process_args upload_args{
+        upload_feed_back_queue,
+        buffer,
+        HTTP_BUFFER_SIZE};
+    xTaskCreate(upload_process,
+                "Upload",
+                8192,
+                &upload_args,
+                1,
+                nullptr);
 
     // 启动环境检测任务
     static std::atomic<uint16_t> report_env_delay;
@@ -293,7 +297,6 @@ extern "C" void app_main(void)
                 1,
                 nullptr);
 
-    
     init(panel.panel_handle(),
          panel.io_handle(),
          touch.touch_handle(),
@@ -306,8 +309,7 @@ extern "C" void app_main(void)
     dropdown_capture_event_args dropdown_capture_args{
         capture_delay,
         running,
-        capture_handle
-    };
+        capture_handle};
     lv_obj_add_event_cb(guider_ui.screen_2_Count_interval,
                         dropdown_capture_event_cb,
                         LV_EVENT_VALUE_CHANGED,
@@ -321,7 +323,6 @@ extern "C" void app_main(void)
                         LV_EVENT_VALUE_CHANGED,
                         nullptr);
 
-    
     static dl::image::img_t screen_buffer{
         nullptr,
         320,
@@ -346,7 +347,6 @@ extern "C" void app_main(void)
                 nullptr,
                 1,
                 nullptr);
-
 
     while (true)
     {

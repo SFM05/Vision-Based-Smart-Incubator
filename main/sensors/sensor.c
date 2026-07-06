@@ -112,6 +112,7 @@ esp_err_t sensors_driver_read(sensors_data_t *out_data)
         ESP_LOGW(TAG, "SHT40 transmit failed: %s", esp_err_to_name(err));
     }
 
-    out_data->is_valid = sgp_ok && sht_ok;
-    return out_data->is_valid ? ESP_OK : ESP_FAIL;
+    out_data->sht_valid = sht_ok;
+    out_data->sgp_valid = sgp_ok;
+    return (sht_ok && sgp_ok) ? ESP_OK : ESP_FAIL;
 }

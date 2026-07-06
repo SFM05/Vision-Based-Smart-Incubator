@@ -16,6 +16,7 @@ set(srcs "main.cpp"
          "sdcard/sdcard.cpp"
          "cam/cam.cpp"
          "tcd/tcd.cpp"
+         "led/led.cpp"
          "frontend.cpp"
          "backend.cpp")
 set(requires esp_lcd
@@ -49,7 +50,8 @@ set(include_dirs "."
                  "iot"
                  "tcd"
                  "sdcard"
-                 "cam")
+                 "cam"
+                 "led")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

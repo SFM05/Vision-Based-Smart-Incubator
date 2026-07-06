@@ -25,7 +25,8 @@ typedef struct {
     float humidity_rh;      /**< 湿度 (%RH) */
     uint16_t eco2_ppm;      /**< eCO2 (ppm) */
     uint16_t tvoc_ppb;      /**< TVOC (ppb) */
-    bool is_valid;          /**< 双传感器均有效 */
+    bool sht_valid;
+    bool sgp_valid;          
 } sensors_data_t;
 
 /**

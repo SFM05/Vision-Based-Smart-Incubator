@@ -14,12 +14,13 @@ dependencies:
   #   public: true
   espressif/esp_video: ^2.2.0
   espressif/esp_sccb_intf: ^0.0.8
-  espressif/esp-dl: ^3.3.2
+  espressif/esp-dl: =3.3.6
   espressif/yolo26: ^0.1.0
   espressif/esp_lcd_st7796: ^1.4.0
   espressif/esp_lcd_touch_ft5x06: ^1.1.0~1
   lvgl/lvgl: ^8.4.0
-  espressif/esp_ipa: '<=2.1.0'
+  espressif/esp_ipa: <=2.1.0
   espressif/mqtt: ^1.0.0
   espressif/cjson: ^1.7.19~2
   espressif/ip101: ^1.0.0
+  espressif/led_strip: ^3.0.3

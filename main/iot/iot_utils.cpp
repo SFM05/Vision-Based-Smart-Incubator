@@ -224,7 +224,7 @@ namespace IOT
         return ESP_OK;
     }
 
-    esp_err_t report_env(float temp, double hum, uint16_t co2)
+    esp_err_t report_env(float temp, float hum, uint16_t co2)
     {
         if (!MQTT::MQTT::instance().mqtt_handle())
         {

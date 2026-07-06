@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +34,7 @@ namespace fs = std::filesystem;
 
 #include "cam.hpp"
 #include "iot_utils.hpp"
+#include "led.hpp"
 #include "mqtt.hpp"
 #include "sdcard.hpp"
 #include "sensor.h"
@@ -74,6 +76,8 @@ void capture_process(void *argv)
 
         // 获取唤醒时间
         last_wake_time = xTaskGetTickCount();
+        LED::on(255);
+        vTaskDelay(pdMS_TO_TICKS(500));
 
         // 接管帧缓冲区
         auto state = ioctl(CAM::camera::instance().fd(), VIDIOC_DQBUF, &cam_buf);
@@ -100,6 +104,7 @@ void capture_process(void *argv)
         transformer.set_src_img_crop_area({420, 0, 1499, 1079});
         transformer.transform();
         ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf); // 归还帧缓冲区
+        LED::off();
         ESP_LOGI(TAG, "Get one frame.");
 
         // 帧信息
@@ -296,55 +301,81 @@ void report_env_process(void *argv)
     const char *TAG = "report env";
     auto args = static_cast<report_env_process_args *>(argv);
     sensors_data_t data;
-    esp_err_t err;
     char current_day[20];
     char current_time[20];
     TickType_t last_wake_time;
+    uint8_t cnt;
+    float temp, hum;
+    uint16_t co2;
     ESP_LOGI(TAG, "report env process start.");
 
     while (true)
     {
         last_wake_time = xTaskGetTickCount();
+        temp = hum = NAN;
+        co2 = 0xFFFF;
 
-        err = sensors_driver_read(&data);
-        if (err == ESP_OK && data.is_valid)
+        sensors_driver_read(&data);
+        time_t now = time(NULL); // 秒级时间戳
+        tm tm_info;
+        localtime_r(&now, &tm_info); // 转本地时间
+        strftime(current_day, 20, "%Y-%m-%d", &tm_info);
+        strftime(current_time, 20, "%H:%M:%S", &tm_info);
+        fs::path file_path = std::format("/sdcard/env/{}.txt", current_day);
+        if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
+            fs::create_directories(file_path.parent_path());
+        std::ofstream file(file_path, std::ios::app);
+        if (!file.is_open()) [[unlikely]]
         {
-            time_t now = time(NULL); // 秒级时间戳
-            tm tm_info;
-            localtime_r(&now, &tm_info); // 转本地时间
-            strftime(current_day, 20, "%Y-%m-%d", &tm_info);
-            strftime(current_time, 20, "%H:%M:%S", &tm_info);
-            fs::path file_path = std::format("/sdcard/env/{}.txt", current_day);
+            ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
+            continue;
+        }
 
-            if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
-                fs::create_directories(file_path.parent_path());
-            std::ofstream file(file_path, std::ios::app);
-            if (!file.is_open()) [[unlikely]]
+        cnt = 0;
+        do
+        {
+            sensors_driver_read(&data);
+            if (data.sht_valid)
             {
-                ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
-                continue;
+                file << std::format("{} {:<6.1f} {:<6.1f}\n",
+                                    current_time, data.temperature_c, data.humidity_rh);
+                temp = data.temperature_c;
+                hum = data.humidity_rh;
+                break;
             }
-
-            file << std::format("{} {:<6.1f} {:<6.1f} {:<8}\n",
-                                current_time,
-                                data.temperature_c,
-                                data.humidity_rh,
-                                data.eco2_ppm);
-            file.close(); // 关闭文件
-
-            IOT::report_env(data.temperature_c, data.humidity_rh, data.eco2_ppm);
-
-            ESP_LOGI(TAG, "%s",
-                     std::format("T={:>5.1f},RH={:>5.1f}",
-                                 data.temperature_c, data.humidity_rh)
-                         .c_str());
-        }
-        else
+            cnt++;
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } while (cnt < 5);
+        if (!data.sht_valid)
         {
-            ESP_LOGW(TAG, "Read failed (SGP30= %s, SHT40= %s)",
-                     data.eco2_ppm ? "OK" : "FAIL",
-                     data.temperature_c != 0 ? "OK" : "FAIL");
+            file << std::format("{} {:<6} {:<6}\n",
+                                current_time, "Err", "Err");
+            temp = NAN;
+            hum = NAN;
         }
+
+        cnt = 0;
+        do
+        {
+            sensors_driver_read(&data);
+            if (data.sgp_valid)
+            {
+                file << std::format("{:<6}\n", data.eco2_ppm);
+                co2 = data.eco2_ppm;
+                break;
+            }
+            cnt++;
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } while (cnt < 5);
+        if (!data.sgp_valid)
+        {
+            file << std::format("{:<6}\n", "Err");
+            co2 = 0xFFFF;
+        }
+        IOT::report_env(temp, hum, co2);
+        file.close(); // 关闭文件
+
+        ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f, CO2: %d", temp, hum, co2);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         xTaskDelayUntil(&last_wake_time,
                         pdMS_TO_TICKS(args->delay.load()));
