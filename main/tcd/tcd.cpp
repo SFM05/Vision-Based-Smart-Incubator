@@ -1,14 +1,13 @@
 #include "tcd.h"
-#include "driver/i2c_master.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "sensor.h"
 #include <math.h>
 #include <stdio.h>
 
-// ================= ️ 系统参数配置 =================
-constexpr uint32_t I2C_FREQ_HZ = 100000; // 共享 Camera 总线，使用 100kHz
+// ================= 系统参数配置 =================
 constexpr uint32_t PWM_FREQ_HZ = 5000;
 constexpr uint16_t PWM_DUTY_RES = 13; // 0 ~ 8191
 
@@ -26,9 +25,6 @@ constexpr float PID_KD = 5.0f;
 constexpr float PID_INTEGRAL_MAX = 40.0f;
 constexpr float OUTPUT_RATE_LIMIT = 10.0f;
 
-constexpr uint8_t SHT45_ADDR = 0x44;
-constexpr uint8_t CMD_READ_HIGH = 0xFD;
-
 static const char *TAG = "TCD";
 
 // ================= 数据结构 =================
@@ -44,7 +40,6 @@ typedef struct
     float integral_max;
 } PID_Controller;
 
-static i2c_master_dev_handle_t sht45_dev = NULL;
 static PID_Controller pid;
 
 // ================= PID 算法 =================
@@ -106,23 +101,6 @@ static float PID_Compute(PID_Controller *pid, float measurement)
 }
 
 // ================= 辅助函数 =================
-static uint8_t sht45_crc8(const uint8_t *data, size_t len)
-{
-    uint8_t crc = 0xFF;
-    for (size_t i = 0; i < len; i++)
-    {
-        crc ^= data[i];
-        for (uint8_t bit = 8; bit > 0; --bit)
-        {
-            if (crc & 0x80)
-                crc = (crc << 1) ^ 0x31;
-            else
-                crc <<= 1;
-        }
-    }
-    return crc;
-}
-
 static void pwm_set_percent(float percent)
 {
     if (percent < 0)
@@ -137,26 +115,9 @@ static void pwm_set_percent(float percent)
 }
 
 // ================= 硬件初始化 =================
-static void tcd_hw_init(gpio_num_t sda, gpio_num_t scl, gpio_num_t heater)
+static void tcd_hw_init(i2c_master_bus_handle_t i2c_bus, gpio_num_t heater)
 {
-    // 1. 初始化 I2C 总线
-    i2c_master_bus_handle_t bus_handle;
-    i2c_master_bus_config_t bus_cfg = {};
-    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
-    bus_cfg.i2c_port = I2C_NUM_0;
-    bus_cfg.scl_io_num = scl;
-    bus_cfg.sda_io_num = sda;
-    bus_cfg.glitch_ignore_cnt = 7;
-    bus_cfg.flags.enable_internal_pullup = true;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus_handle));
-
-    i2c_device_config_t dev_cfg = {};
-    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-    dev_cfg.device_address = SHT45_ADDR;
-    dev_cfg.scl_speed_hz = I2C_FREQ_HZ;
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &sht45_dev));
-
-    // 2. 初始化 PWM (LED Controller) - 使用逐个赋值避免 C++ 编译顺序错误
+    // 1. 初始化 PWM (LED Controller) - 使用逐个赋值避免 C++ 编译顺序错误
     ledc_timer_config_t ledc_timer = {};
     ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE;
     ledc_timer.timer_num = LEDC_TIMER_0;
@@ -181,7 +142,7 @@ static void tcd_hw_init(gpio_num_t sda, gpio_num_t scl, gpio_num_t heater)
     PID_Init(&pid, PID_KP, PID_KI, PID_KD, PID_INTEGRAL_MAX, MAX_HEATER_POWER);
     pid.setpoint = TARGET_TEMP;
 
-    ESP_LOGI(TAG, "Init OK (SHT45@GPIO%d/%d, PWM@GPIO%d)", sda, scl, heater);
+    ESP_LOGI(TAG, "Init OK (PWM@GPIO%d)", heater);
 }
 
 // ================= 后台任务 =================
@@ -192,26 +153,12 @@ static void tcd_loop_task(void *pvParameters)
 
     while (1)
     {
-        uint8_t tx[1] = {CMD_READ_HIGH};
-        uint8_t rx[6] = {};
-        bool read_ok = false;
-
-        if (i2c_master_transmit(sht45_dev, tx, 1, pdMS_TO_TICKS(100)) == ESP_OK)
-        {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            if (i2c_master_receive(sht45_dev, rx, 6, pdMS_TO_TICKS(100)) == ESP_OK)
-            {
-                if (sht45_crc8(rx, 2) == rx[2] && sht45_crc8(&rx[3], 2) == rx[5])
-                {
-                    uint16_t raw_t = (rx[0] << 8) | rx[1];
-                    temp = -45.0f + 175.0f * raw_t / 65535.0f;
-                    read_ok = true;
-                }
-            }
-        }
+        sensors_data_t data;
+        bool read_ok = (sensors_driver_read(&data) == ESP_OK && data.is_valid);
 
         if (read_ok)
         {
+            temp = data.temperature_c;
             float error = pid.setpoint - temp;
             float final_power = 0;
             bool is_fast_mode = (fabs(error) > PID_SWITCH_THRESHOLD);
@@ -271,10 +218,16 @@ static void tcd_loop_task(void *pvParameters)
 }
 
 // ================= 对外接口 =================
-void tcd_start(gpio_num_t sda_pin, gpio_num_t scl_pin, gpio_num_t heater_pin)
+void tcd_set_target(float target_c)
+{
+    pid.setpoint = target_c;
+    ESP_LOGI(TAG, "Target set to %.1f°C", target_c);
+}
+
+void tcd_start(i2c_master_bus_handle_t i2c_bus, gpio_num_t heater_pin)
 {
     ESP_LOGI(TAG, "Starting TCD System...");
-    tcd_hw_init(sda_pin, scl_pin, heater_pin);
+    tcd_hw_init(i2c_bus, heater_pin);
     xTaskCreate(tcd_loop_task,
                 "tcd_loop",
                 4096,

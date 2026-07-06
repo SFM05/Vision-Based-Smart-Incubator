@@ -14,12 +14,14 @@ namespace sdcard
         }
         esp_err_t init();
         void deinit();
+        bool status() { return m_status; }
 
     private:
         sdmmc_card_t *m_card;
         esp_ldo_channel_handle_t m_ldo_chan_handle;
+        bool m_status;
 
-        SDcard() : m_card{}, m_ldo_chan_handle{} {}
+        SDcard() : m_card{}, m_ldo_chan_handle{},m_status{false} {}
         ~SDcard() = default;
     };
 }

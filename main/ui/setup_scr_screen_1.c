@@ -108,7 +108,7 @@ void setup_scr_screen_1(lv_ui *ui)
 
     //Write codes screen_1_Temperature
     ui->screen_1_Temperature = lv_label_create(ui->screen_1);
-    lv_label_set_text(ui->screen_1_Temperature, "Temperature:");
+    lv_label_set_text(ui->screen_1_Temperature, "Temp:");
     lv_label_set_long_mode(ui->screen_1_Temperature, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_1_Temperature, 325, 50);
     lv_obj_set_size(ui->screen_1_Temperature, 170, 50);
@@ -131,7 +131,7 @@ void setup_scr_screen_1(lv_ui *ui)
 
     //Write codes screen_1_Humidity
     ui->screen_1_Humidity = lv_label_create(ui->screen_1);
-    lv_label_set_text(ui->screen_1_Humidity, "Humidity:");
+    lv_label_set_text(ui->screen_1_Humidity, "Hum:");
     lv_label_set_long_mode(ui->screen_1_Humidity, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_1_Humidity, 325, 100);
     lv_obj_set_size(ui->screen_1_Humidity, 155, 50);

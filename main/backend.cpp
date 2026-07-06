@@ -34,6 +34,7 @@ namespace fs = std::filesystem;
 #include "cam.hpp"
 #include "iot_utils.hpp"
 #include "mqtt.hpp"
+#include "sdcard.hpp"
 #include "sensor.h"
 
 #include "backend.hpp"
@@ -46,6 +47,7 @@ void capture_process(void *argv)
     const char *TAG = "capture";
     ESP_LOGI(TAG, "Capture process started.");
     auto args = static_cast<capture_process_args *>(argv);
+    TickType_t last_wake_time;
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     v4l2_buffer cam_buf{};
@@ -62,11 +64,16 @@ void capture_process(void *argv)
 
     while (true)
     {
+        args->running = true;
         if (!CAM::camera::instance().streaming())
         {
             vTaskDelay(pdMS_TO_TICKS(1));
+            args->running = false;
             continue;
         }
+
+        // 获取唤醒时间
+        last_wake_time = xTaskGetTickCount();
 
         // 接管帧缓冲区
         auto state = ioctl(CAM::camera::instance().fd(), VIDIOC_DQBUF, &cam_buf);
@@ -104,37 +111,40 @@ void capture_process(void *argv)
         strftime(data.time, 20, "%Y%m%d-%H%M%S", &tm_info);
 
         vTaskDelay(pdMS_TO_TICKS(1));
-        // frame_meta_data data{current_time, plate_id};
         xQueueSend(args->start_inference, &data, pdMS_TO_TICKS(200));
-        // xSemaphoreGive(args->start_inference); // 启动推理
 
         taskYIELD(); // 进入就绪态
 
         // 编码输出至sd卡
-        auto jpeg = dl::image::hw_encode_jpeg(args->cropped_buf);
-
-        fs::path file_path = std::format("/sdcard/{}/{}.jpg",
-                                         data.plate_id,
-                                         data.time);
-        if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
-            fs::create_directories(file_path.parent_path());
-        std::ofstream file(file_path, std::ios::binary);
-        if (!file.is_open()) [[unlikely]]
+        if (sdcard::SDcard::instance().status())
         {
-            ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
-            continue;
-        }
+            auto jpeg = dl::image::hw_encode_jpeg(args->cropped_buf);
 
-        file.write(static_cast<char *>(jpeg.data), jpeg.data_len);
-        file.close(); // 关闭文件
-        ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
+            fs::path file_path = std::format("/sdcard/{}/{}.jpg",
+                                             data.plate_id,
+                                             data.time);
+            if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
+                fs::create_directories(file_path.parent_path());
+            std::ofstream file(file_path, std::ios::binary);
+            if (!file.is_open()) [[unlikely]]
+            {
+                ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
+                continue;
+            }
+
+            file.write(static_cast<char *>(jpeg.data), jpeg.data_len);
+            file.close(); // 关闭文件
+            ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
+        }
 
         xSemaphoreTake(args->inference_end, portMAX_DELAY);
         // 通知上传任务
         xQueueSend(args->request_upload, &data, portMAX_DELAY);
         xSemaphoreGive(args->flush_screen);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        args->running = false;
+        xTaskDelayUntil(&last_wake_time,
+                        pdMS_TO_TICKS(args->delay.load()));
     }
 }
 
@@ -152,13 +162,6 @@ void inference_process(void *argv)
         xQueueReceive(args->start_inference, &data, portMAX_DELAY);
         ESP_LOGI(TAG, "Start inference...");
 
-        // xSemaphoreTake(args->capture_inference_mutex, portMAX_DELAY); // 加锁保证多线程
-        // dl::image::ImageTransformer transformer;
-        // transformer.set_src_img(args->cropped_buf);
-        // transformer.set_dst_img(args->image);
-        // transformer.transform();
-        // xSemaphoreGive(args->capture_inference_mutex);
-
         xSemaphoreTake(args->capture_inference_mutex, portMAX_DELAY); // 加锁保证多线程
         args->processor.preprocess(args->cropped_buf);
         xSemaphoreGive(args->capture_inference_mutex);
@@ -175,29 +178,32 @@ void inference_process(void *argv)
         taskYIELD();
 
         // 输出至sd卡
-        fs::path file_path = std::format("/sdcard/{}/{}.txt",
-                                         data.plate_id,
-                                         data.time);
-        if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
-            fs::create_directories(file_path.parent_path());
-        std::ofstream file(file_path, std::ios::out);
-        if (!file.is_open()) [[unlikely]]
+        if (sdcard::SDcard::instance().status())
         {
-            ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
-            continue;
-        }
+            fs::path file_path = std::format("/sdcard/{}/{}.txt",
+                                             data.plate_id,
+                                             data.time);
+            if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
+                fs::create_directories(file_path.parent_path());
+            std::ofstream file(file_path, std::ios::out);
+            if (!file.is_open()) [[unlikely]]
+            {
+                ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
+                continue;
+            }
 
-        for (const auto &item : args->result)
-        {
-            file << std::format("{:<3} {:<3} {:<3} {:<3} {:<8.6f}\n",
-                                item.box[0],
-                                item.box[1],
-                                item.box[2],
-                                item.box[3],
-                                item.score);
+            for (const auto &item : args->result)
+            {
+                file << std::format("{:<3} {:<3} {:<3} {:<3} {:<8.6f}\n",
+                                    item.box[0],
+                                    item.box[1],
+                                    item.box[2],
+                                    item.box[3],
+                                    item.score);
+            }
+            file.close();
+            ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
         }
-        file.close();
-        ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
 
         // 通知上传任务
         xSemaphoreGive(args->inference_end);
@@ -288,14 +294,18 @@ void upload_process(void *argv)
 void report_env_process(void *argv)
 {
     const char *TAG = "report env";
+    auto args = static_cast<report_env_process_args *>(argv);
     sensors_data_t data;
     esp_err_t err;
     char current_day[20];
     char current_time[20];
+    TickType_t last_wake_time;
     ESP_LOGI(TAG, "report env process start.");
 
     while (true)
     {
+        last_wake_time = xTaskGetTickCount();
+
         err = sensors_driver_read(&data);
         if (err == ESP_OK && data.is_valid)
         {
@@ -336,6 +346,7 @@ void report_env_process(void *argv)
                      data.temperature_c != 0 ? "OK" : "FAIL");
         }
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        xTaskDelayUntil(&last_wake_time,
+                        pdMS_TO_TICKS(args->delay.load()));
     }
 }

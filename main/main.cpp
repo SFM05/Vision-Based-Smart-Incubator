@@ -9,9 +9,11 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "ft6336_driver.hpp"
@@ -38,6 +40,7 @@ extern "C"
 
 #include "backend.hpp"
 #include "cam.hpp"
+#include "custom.hpp"
 #include "frontend.hpp"
 #include "tcd/tcd.h"
 
@@ -59,8 +62,6 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_TCD_SDA = GPIO_NUM_7;    // 复用 Camera I2C
-constexpr gpio_num_t GPIO_TCD_SCL = GPIO_NUM_8;    // 复用 Camera I2C
 constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_5; // 加热片 PWM
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
@@ -117,7 +118,7 @@ extern "C" void app_main(void)
                            true);
     ESP_ERROR_CHECK(touch.i2c_init());
     // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
-    // ESP_ERROR_CHECK(sensors_driver_init(touch.i2c_handle()));
+    sensors_driver_init(touch.i2c_handle());
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     if (terr != ESP_OK)
@@ -174,24 +175,14 @@ extern "C" void app_main(void)
         }
     }
 
-    // tcd_start(GPIO_TCD_SDA, GPIO_TCD_SCL, GPIO_TCD_HEATER);
+    // tcd_start(cam_i2c, GPIO_TCD_HEATER);
     // ESP_LOGI(TAG, "TCD Control Started");
-
-    init(panel.panel_handle(),
-         panel.io_handle(),
-         touch.touch_handle(),
-         W, H);
-
-    setup_ui(&guider_ui);
-    // LvglPort::refresh();
-    lv_refr_now(lv_disp_get_default());
-    ESP_LOGI(TAG, "UI ready");
 
     CAM::camera::instance().init_camera();
 
     sdcard::SDcard::instance().init();
 
-    ETH::Ethernet::instance().init();
+    // ETH::Ethernet::instance().init();
 
     // QueueHandle_t upload_feed_back_queue = xQueueCreate(5, sizeof(char[512]));
     // mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
@@ -221,19 +212,25 @@ extern "C" void app_main(void)
     static SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
     static QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
     static SemaphoreHandle_t flush_screen = xSemaphoreCreateBinary();
+    static std::atomic<uint32_t> capture_delay;
+    capture_delay.store(30000);
+    static std::atomic<bool> running = false;
+    static TaskHandle_t capture_handle=nullptr;
     static capture_process_args capture_args{
         cropped_buf,
         capture_inference_queue,
         inference_end,
         capture_inference_mutex,
         capture_request_queue,
-        flush_screen};
+        flush_screen,
+        capture_delay,
+        running};
     xTaskCreate(capture_process,
                 "Capture",
                 4096,
                 &capture_args,
                 1,
-                nullptr);
+                &capture_handle);
 
     // 启动推理任务
     static dl::Model *model = new dl::Model("yolo26",
@@ -286,13 +283,45 @@ extern "C" void app_main(void)
     //             nullptr);
 
     // 启动环境检测任务
-    // xTaskCreate(report_env_process,
-    //             "ReporEnv",
-    //             4096,
-    //             nullptr,
-    //             1,
-    //             nullptr);
+    static std::atomic<uint16_t> report_env_delay;
+    report_env_delay.store(1000);
+    report_env_process_args report_env_args{report_env_delay};
+    xTaskCreate(report_env_process,
+                "ReporEnv",
+                4096,
+                &report_env_args,
+                1,
+                nullptr);
 
+    
+    init(panel.panel_handle(),
+         panel.io_handle(),
+         touch.touch_handle(),
+         W, H);
+
+    setup_ui(&guider_ui);
+    lv_refr_now(lv_disp_get_default());
+    ESP_LOGI(TAG, "UI ready");
+
+    dropdown_capture_event_args dropdown_capture_args{
+        capture_delay,
+        running,
+        capture_handle
+    };
+    lv_obj_add_event_cb(guider_ui.screen_2_Count_interval,
+                        dropdown_capture_event_cb,
+                        LV_EVENT_VALUE_CHANGED,
+                        &dropdown_capture_args);
+    lv_obj_add_event_cb(guider_ui.screen_2_Upload_interval,
+                        dropdown_report_env_event_cb,
+                        LV_EVENT_VALUE_CHANGED,
+                        &report_env_delay);
+    lv_obj_add_event_cb(guider_ui.screen_2_Temperature_slider,
+                        slider_temp_event_cb,
+                        LV_EVENT_VALUE_CHANGED,
+                        nullptr);
+
+    
     static dl::image::img_t screen_buffer{
         nullptr,
         320,
@@ -317,6 +346,7 @@ extern "C" void app_main(void)
                 nullptr,
                 1,
                 nullptr);
+
 
     while (true)
     {

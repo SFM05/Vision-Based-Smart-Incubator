@@ -52,10 +52,10 @@ void setup_scr_screen_2(lv_ui *ui)
 
     //Write codes screen_2_Temperature_2
     ui->screen_2_Temperature_2 = lv_label_create(ui->screen_2);
-    lv_label_set_text(ui->screen_2_Temperature_2, "Temperature:");
+    lv_label_set_text(ui->screen_2_Temperature_2, "Temperature: 30.0");
     lv_label_set_long_mode(ui->screen_2_Temperature_2, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_2_Temperature_2, 5, 4);
-    lv_obj_set_size(ui->screen_2_Temperature_2, 180, 25);
+    lv_obj_set_size(ui->screen_2_Temperature_2, 250, 25);
 
     //Write style for screen_2_Temperature_2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
     lv_obj_set_style_border_width(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
@@ -123,7 +123,7 @@ void setup_scr_screen_2(lv_ui *ui)
     ui->screen_2_Temperature_slider = lv_slider_create(ui->screen_2);
     lv_slider_set_range(ui->screen_2_Temperature_slider, 0, 100);
     lv_slider_set_mode(ui->screen_2_Temperature_slider, LV_SLIDER_MODE_NORMAL);
-    lv_slider_set_value(ui->screen_2_Temperature_slider, 50, LV_ANIM_OFF);
+    lv_slider_set_value(ui->screen_2_Temperature_slider, 17, LV_ANIM_OFF);
     lv_obj_set_pos(ui->screen_2_Temperature_slider, 30, 34);
     lv_obj_set_size(ui->screen_2_Temperature_slider, 400, 20);
 

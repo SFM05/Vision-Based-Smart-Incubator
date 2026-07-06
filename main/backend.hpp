@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
 #include "yolo26.hpp"
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -20,6 +21,8 @@ struct capture_process_args
     SemaphoreHandle_t &inference_capture_mutex;
     SemaphoreHandle_t &request_upload;
     SemaphoreHandle_t &flush_screen;
+    std::atomic<uint32_t> &delay;
+    std::atomic<bool> &running;
 };
 struct frame_meta_data
 {
@@ -55,6 +58,10 @@ struct upload_process_args
 };
 void upload_process(void *argv);
 
+struct report_env_process_args
+{
+    std::atomic<uint16_t> &delay;
+};
 void report_env_process(void *argv);
 
 // struct draw_box_process_args

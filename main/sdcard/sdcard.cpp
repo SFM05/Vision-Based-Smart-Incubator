@@ -88,8 +88,8 @@ namespace sdcard
             return err;
         }
 #endif
-
-        return err;
+        m_status = true;
+        return ESP_OK;
     }
 
     void SDcard::deinit()
@@ -98,5 +98,6 @@ namespace sdcard
 #if CONFIG_SD_CARD_SPI_MOD
         esp_ldo_release_channel(m_ldo_chan_handle);
 #endif
+        m_status = false;
     }
 }
