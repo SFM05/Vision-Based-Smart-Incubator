@@ -58,12 +58,6 @@ void capture_process(void *argv)
     cam_buf.memory = V4L2_MEMORY_MMAP;
 
     uint8_t *frame = nullptr;
-    dl::image::img_t raw{
-        nullptr,
-        CAM::camera::instance().width(),
-        CAM::camera::instance().height(),
-        dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
-    dl::image::ImageTransformer transformer;
 
     while (true)
     {
@@ -99,7 +93,14 @@ void capture_process(void *argv)
         esp_cache_msync(frame, CAM::camera::instance().buf_len()[cam_buf.index],
                         ESP_CACHE_MSYNC_FLAG_DIR_M2C); // 同步缓冲
 
+        dl::image::img_t raw{
+            nullptr,
+            CAM::camera::instance().width(),
+            CAM::camera::instance().height(),
+            dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
+        dl::image::ImageTransformer transformer;
         raw.data = static_cast<void *>(frame);
+        // ESP_LOGI(TAG,"%d %d->%d %d",raw.height,raw.width,args->cropped_buf.height,args->cropped_buf.width);
         transformer.set_src_img(raw);
         transformer.set_dst_img(args->cropped_buf);
         transformer.set_src_img_crop_area({420, 0, 1499, 1079});
@@ -140,6 +141,7 @@ void capture_process(void *argv)
 
             file.write(static_cast<char *>(jpeg.data), jpeg.data_len);
             file.close(); // 关闭文件
+            heap_caps_free(jpeg.data);
             ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
         }
 

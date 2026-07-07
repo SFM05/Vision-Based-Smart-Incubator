@@ -111,7 +111,7 @@ extern "C" void app_main(void)
     //             nullptr,
     //             4,
     //             nullptr);
-    LCD::FT6336 touch{W, H,100*1000};
+    LCD::FT6336 touch{W, H, 100 * 1000};
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
     touch.set_touch_config(GPIO_CTP_RST,
                            GPIO_CTP_INT,
@@ -209,15 +209,16 @@ extern "C" void app_main(void)
         1080,
         1080,
         dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
-    cropped_buf.data = heap_caps_malloc(cropped_buf.bytes(),
-                                        MALLOC_CAP_SPIRAM);
+    cropped_buf.data = heap_caps_aligned_alloc(16,
+                                               cropped_buf.bytes(),
+                                               MALLOC_CAP_SPIRAM);
     static SemaphoreHandle_t capture_inference_mutex = xSemaphoreCreateMutex();
     static QueueHandle_t capture_inference_queue = xQueueCreate(2, sizeof(frame_meta_data));
     static SemaphoreHandle_t inference_end = xSemaphoreCreateBinary();
     static QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
     static SemaphoreHandle_t flush_screen = xSemaphoreCreateBinary();
     static std::atomic<uint32_t> capture_delay;
-    capture_delay.store(30000);
+    capture_delay.store(10000);
     static std::atomic<bool> running = false;
     static TaskHandle_t capture_handle = nullptr;
     static capture_process_args capture_args{
@@ -273,8 +274,8 @@ extern "C" void app_main(void)
 
     // 启动真实上传任务
     constexpr size_t HTTP_BUFFER_SIZE = 1024;
-    static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_malloc(HTTP_BUFFER_SIZE,
-                                                                     MALLOC_CAP_SPIRAM));
+    static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_aligned_alloc(16, HTTP_BUFFER_SIZE,
+                                                                            MALLOC_CAP_SPIRAM));
     static upload_process_args upload_args{
         upload_feed_back_queue,
         buffer,
@@ -328,7 +329,9 @@ extern "C" void app_main(void)
         320,
         320,
         dl::image::DL_IMAGE_PIX_TYPE_RGB565BE};
-    screen_buffer.data = heap_caps_malloc(screen_buffer.bytes(), MALLOC_CAP_SPIRAM);
+    screen_buffer.data = heap_caps_aligned_alloc(16,
+                                                 screen_buffer.bytes(),
+                                                 MALLOC_CAP_SPIRAM);
     static image_display_process_args image_display_args{
         result,
         cropped_buf,
@@ -341,7 +344,7 @@ extern "C" void app_main(void)
                 1,
                 nullptr);
 
-    auto bus=touch.i2c_handle();
+    auto bus = touch.i2c_handle();
     xTaskCreate(env_display_process,
                 "Env Display",
                 5120,
