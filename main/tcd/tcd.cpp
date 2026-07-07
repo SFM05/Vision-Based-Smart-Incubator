@@ -2,8 +2,12 @@
 #include "driver/ledc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/task.h"
+#include "frontend.hpp"
+#include "portmacro.h"
 #include "sensor.h"
+#include <cstdint>
 #include <math.h>
 #include <stdio.h>
 
@@ -150,11 +154,21 @@ static void tcd_loop_task(void *pvParameters)
 {
     float temp = 0.0f;
     bool last_was_fast_mode = true;
+    uint8_t cnt;
 
     while (1)
     {
+        cnt = 0;
         sensors_data_t data;
-        sensors_driver_read(&data);
+        do
+        {
+            xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+            sensors_driver_read(&data);
+            xSemaphoreGive(i2c_mutex);
+            if (data.sht_valid)
+                break;
+            cnt++;
+        } while (cnt < 5);
 
         if (data.sht_valid)
         {

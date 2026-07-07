@@ -1,7 +1,10 @@
 #include "core/lv_obj_pos.h"
+#include "dl_detect_define.hpp"
 #include "dl_image_define.hpp"
 #include "dl_image_process.hpp"
 #include "draw/lv_img_buf.h"
+#include "driver/i2c_master.h"
+#include "driver/i2c_types.h"
 #include "esp_cache.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
@@ -51,6 +54,7 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
 
 static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
+    xSemaphoreTake(i2c_mutex, portMAX_DELAY);
     esp_lcd_touch_handle_t touch = (esp_lcd_touch_handle_t)drv->user_data;
     if (!touch)
     {
@@ -84,6 +88,7 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     {
         data->state = LV_INDEV_STATE_REL;
     }
+    xSemaphoreGive(i2c_mutex);
 }
 
 esp_err_t init(esp_lcd_panel_handle_t panel,
@@ -147,13 +152,31 @@ esp_err_t init(esp_lcd_panel_handle_t panel,
     return ESP_OK;
 }
 
+void draw_box(dl::image::img_t &img, const dl::detect::result_t &result)
+{
+    const int left_up_x = result.box[0]/2;
+    const int left_up_y = result.box[1]/2;
+    const int right_down_x = result.box[2]/2;
+    const int right_down_y = result.box[3]/2;
+    uint16_t *img_pix = reinterpret_cast<uint16_t *>(img.data);
+
+    for (int x = left_up_x; x <= right_down_x; x++)
+    {
+        *(img_pix + 320 * left_up_y + x) = 0x07E0;
+        *(img_pix + 320 * right_down_y + x) = 0x07E0;
+    }
+    for (int y = left_up_y; y <= right_down_y; y++)
+    {
+        *(img_pix + 320 * y + left_up_x) = 0x07E0;
+        *(img_pix + 320 * y + right_down_x) = 0x07E0;
+    }
+}
+
 void image_display_process(void *argv)
 {
     const char *TAG = "image display";
     auto args = static_cast<image_display_process_args *>(argv);
     ESP_LOGI(TAG, "Image display process start.");
-
-    // lv_label_set_text(guider_ui.screen_1_label_1, std::format("Num: {:>3}",42).c_str());
 
     dl::image::ImageTransformer transformer;
 
@@ -169,6 +192,8 @@ void image_display_process(void *argv)
         transformer.set_src_img(args->src_img);
         transformer.set_dst_img(args->dest_buffer);
         transformer.transform();
+        for (const auto &item : args->result)
+            draw_box(args->dest_buffer, item);
 
         lv_lock();
         lv_img_dsc_t *img_dsc = lv_canvas_get_img(guider_ui.screen_1_canvas);
@@ -202,6 +227,7 @@ void image_display_process(void *argv)
 
 void env_display_process(void *argv)
 {
+    auto bus=static_cast<i2c_master_bus_handle_t *>(argv);
     const char *TAG = "env display";
     sensors_data_t data;
     uint8_t cnt;
@@ -211,7 +237,9 @@ void env_display_process(void *argv)
         cnt = 0;
         do
         {
+            xSemaphoreTake(i2c_mutex, portMAX_DELAY);
             sensors_driver_read(&data);
+            xSemaphoreGive(i2c_mutex);
             if (data.sht_valid)
             {
                 lv_lock();
@@ -235,33 +263,35 @@ void env_display_process(void *argv)
             lv_obj_invalidate(guider_ui.screen_1_Temperature);
             lv_obj_invalidate(guider_ui.screen_1_Humidity);
             lv_unlock();
+            i2c_master_bus_reset(*bus);
         }
 
-        cnt = 0;
-        do
-        {
-            sensors_driver_read(&data);
-            if (data.sgp_valid)
-            {
-                lv_lock();
-                lv_label_set_text_fmt(guider_ui.screen_1_CO2,
-                                      "CO2: %d", data.eco2_ppm);
-                lv_obj_invalidate(guider_ui.screen_1_CO2);
-                lv_unlock();
-                break;
-            }
-            cnt++;
-            vTaskDelay(pdMS_TO_TICKS(5));
-        } while (cnt < 5);
-        if (!data.sgp_valid)
-        {
-            lv_lock();
-            lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
-            lv_obj_invalidate(guider_ui.screen_1_CO2);
-            lv_unlock();
-        }
+        // cnt = 0;
+        // do
+        // {
+        //     sensors_driver_read(&data);
+        //     if (data.sgp_valid)
+        //     {
+        //         lv_lock();
+        //         lv_label_set_text_fmt(guider_ui.screen_1_CO2,
+        //                               "CO2: %d", data.eco2_ppm);
+        //         lv_obj_invalidate(guider_ui.screen_1_CO2);
+        //         lv_unlock();
+        //         break;
+        //     }
+        //     cnt++;
+        //     vTaskDelay(pdMS_TO_TICKS(5));
+        // } while (cnt < 5);
+        // if (!data.sgp_valid)
+        // {
+        //     lv_lock();
+        //     lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
+        //     lv_obj_invalidate(guider_ui.screen_1_CO2);
+        //     lv_unlock();
+        //     i2c_master_bus_reset(*bus);
+        // }
 
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }

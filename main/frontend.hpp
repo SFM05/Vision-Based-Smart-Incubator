@@ -2,11 +2,16 @@
 
 #include "dl_detect_define.hpp"
 #include "dl_image_define.hpp"
+#include "driver/i2c_types.h"
 #include "esp_err.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
+#include "freertos/idf_additions.h"
 #include <cassert>
 #include <vector>
+
+inline SemaphoreHandle_t i2c_mutex;
+inline void i2c_mutex_init() { i2c_mutex = xSemaphoreCreateMutex(); }
 
 inline SemaphoreHandle_t lv_handle = NULL;
 inline void lv_mutex_init()

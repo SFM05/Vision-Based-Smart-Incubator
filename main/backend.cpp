@@ -38,6 +38,7 @@ namespace fs = std::filesystem;
 #include "mqtt.hpp"
 #include "sdcard.hpp"
 #include "sensor.h"
+#include "frontend.hpp"
 
 #include "backend.hpp"
 
@@ -277,7 +278,7 @@ void upload_process(void *argv)
             continue;
         }
 
-        if (cJSON_GetObjectItem(root, "sucess")->type == cJSON_True)
+        if (cJSON_GetObjectItem(root, "success")->type == cJSON_True)
         {
             IOT::upload_file(cJSON_GetObjectItem(root, "url")->valuestring,
                              cJSON_GetObjectItem(root, "path")->valuestring,
@@ -334,7 +335,9 @@ void report_env_process(void *argv)
         cnt = 0;
         do
         {
+            xSemaphoreTake(i2c_mutex, portMAX_DELAY);
             sensors_driver_read(&data);
+            xSemaphoreGive(i2c_mutex);
             if (data.sht_valid)
             {
                 file << std::format("{} {:<6.1f} {:<6.1f}\n",
@@ -354,24 +357,24 @@ void report_env_process(void *argv)
             hum = NAN;
         }
 
-        cnt = 0;
-        do
-        {
-            sensors_driver_read(&data);
-            if (data.sgp_valid)
-            {
-                file << std::format("{:<6}\n", data.eco2_ppm);
-                co2 = data.eco2_ppm;
-                break;
-            }
-            cnt++;
-            vTaskDelay(pdMS_TO_TICKS(5));
-        } while (cnt < 5);
-        if (!data.sgp_valid)
-        {
-            file << std::format("{:<6}\n", "Err");
-            co2 = 0xFFFF;
-        }
+        // cnt = 0;
+        // do
+        // {
+        //     sensors_driver_read(&data);
+        //     if (data.sgp_valid)
+        //     {
+        //         file << std::format("{:<6}\n", data.eco2_ppm);
+        //         co2 = data.eco2_ppm;
+        //         break;
+        //     }
+        //     cnt++;
+        //     vTaskDelay(pdMS_TO_TICKS(5));
+        // } while (cnt < 5);
+        // if (!data.sgp_valid)
+        // {
+        //     file << std::format("{:<6}\n", "Err");
+        //     co2 = 0xFFFF;
+        // }
         IOT::report_env(temp, hum, co2);
         file.close(); // 关闭文件
 

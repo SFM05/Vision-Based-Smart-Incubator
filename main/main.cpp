@@ -111,7 +111,7 @@ extern "C" void app_main(void)
     //             nullptr,
     //             4,
     //             nullptr);
-    LCD::FT6336 touch{W, H};
+    LCD::FT6336 touch{W, H,100*1000};
     touch.set_i2c_config(GPIO_CTP_SDA, GPIO_CTP_SCL);
     touch.set_touch_config(GPIO_CTP_RST,
                            GPIO_CTP_INT,
@@ -120,10 +120,10 @@ extern "C" void app_main(void)
                            false,
                            true);
     ESP_ERROR_CHECK(touch.i2c_init());
-    // ESP_ERROR_CHECK(init_sensor_devices(touch.i2c_handle()));
     sensors_driver_init(touch.i2c_handle());
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
+    i2c_mutex_init();
     if (terr != ESP_OK)
     {
         ESP_LOGW(TAG, "Touch init failed (%s), continuing", esp_err_to_name(terr));
@@ -206,8 +206,8 @@ extern "C" void app_main(void)
     // 启动捕捉任务
     static dl::image::img_t cropped_buf{
         nullptr,
-        640,
-        640,
+        1080,
+        1080,
         dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
     cropped_buf.data = heap_caps_malloc(cropped_buf.bytes(),
                                         MALLOC_CAP_SPIRAM);
@@ -292,7 +292,7 @@ extern "C" void app_main(void)
     report_env_process_args report_env_args{report_env_delay};
     xTaskCreate(report_env_process,
                 "ReporEnv",
-                4096,
+                6144,
                 &report_env_args,
                 1,
                 nullptr);
@@ -336,15 +336,16 @@ extern "C" void app_main(void)
         flush_screen};
     xTaskCreate(image_display_process,
                 "Image Display",
-                2048,
+                5120,
                 &image_display_args,
                 1,
                 nullptr);
 
+    auto bus=touch.i2c_handle();
     xTaskCreate(env_display_process,
                 "Env Display",
-                3072,
-                nullptr,
+                5120,
+                &bus,
                 1,
                 nullptr);
 

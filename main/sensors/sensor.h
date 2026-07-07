@@ -31,17 +31,20 @@ typedef struct {
 
 /**
  * @brief 初始化 SHT40 和 SGP30（添加设备 + 发送 SGP30 init 命令）
+ *        支持部分初始化：任一传感器失败不会阻塞另一个。
  *
  * @param i2c_bus 已创建的 I2C 主设备总线句柄
- * @return esp_err_t
+ * @return esp_err_t 始终返回 ESP_OK（部分失败仅打日志）
  */
 esp_err_t sensors_driver_init(i2c_master_bus_handle_t i2c_bus);
 
 /**
- * @brief 读取双传感器数据（SGP30 先读，间隔 2ms 后读 SHT40）
+ * @brief 读取双传感器数据（仅读取已初始化的传感器）
+ *        SGP30 先读，间隔 2ms 后读 SHT40。
  *
- * @param out_data 输出结构体，is_valid 指示是否全部成功
- * @return esp_err_t
+ * @param out_data 输出结构体，通过 sht_valid / sgp_valid 判断数据有效性
+ * @return ESP_OK  至少一个传感器有有效数据
+ * @return ESP_FAIL 所有传感器均无有效数据
  */
 esp_err_t sensors_driver_read(sensors_data_t *out_data);
 

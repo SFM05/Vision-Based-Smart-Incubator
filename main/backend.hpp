@@ -36,7 +36,7 @@ struct inference_process_args
     dl::image::img_t &cropped_buf; // 1080*1080
     dl::Model *model;
     YOLO26 &processor;
-    std::vector<dl::detect::result_t> result;
+    std::vector<dl::detect::result_t> &result;
     QueueHandle_t &start_inference;
     SemaphoreHandle_t &inference_end;
     SemaphoreHandle_t &capture_inference_mutex;
@@ -46,7 +46,7 @@ void inference_process(void *argv);
 struct upload_request_process_args
 {
     QueueHandle_t &request_upload;
-    std::vector<dl::detect::result_t> result;
+    std::vector<dl::detect::result_t> &result;
 };
 void upload_request_process(void *argv);
 
