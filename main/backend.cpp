@@ -1,3 +1,4 @@
+#include "esp_heap_caps.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <string>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <unistd.h>
 namespace fs = std::filesystem;
 #include "cJSON.h"
@@ -32,13 +34,14 @@ namespace fs = std::filesystem;
 // #include "esp_video_device.h"
 // #include "esp_video_isp_ioctl.h"
 
+#include "abnormal_detect.hpp"
 #include "cam.hpp"
+#include "frontend.hpp"
 #include "iot_utils.hpp"
 #include "led.hpp"
 #include "mqtt.hpp"
 #include "sdcard.hpp"
 #include "sensor.h"
-#include "frontend.hpp"
 
 #include "backend.hpp"
 
@@ -216,6 +219,50 @@ void inference_process(void *argv)
         // 通知上传任务
         xSemaphoreGive(args->inference_end);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+    }
+}
+
+void detect_abnormal_process(void *argv)
+{
+    auto args = static_cast<detect_abnormal_process_args *>(argv);
+
+    float *base_feature;
+    constexpr int TARGET_K = 128;
+    base_feature = static_cast<float *>(heap_caps_malloc(23 * TARGET_K * sizeof(float),
+                                                         MALLOC_CAP_SPIRAM));
+    float mean_feature[23];
+    dl::image::img_t resized_img{
+        nullptr,
+        640,
+        640,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB888};
+    resized_img.data = heap_caps_malloc(resized_img.bytes(), MALLOC_CAP_SPIRAM);
+    dl::image::ImageTransformer transformer;
+
+    while (true)
+    {
+        xSemaphoreTake(args->start_detect, portMAX_DELAY);
+
+        transformer.set_src_img(args->cropped_buf);
+        transformer.set_dst_img(args->cropped_buf);
+        transformer.transform();
+        taskYIELD();
+
+        for (size_t i = 0; i < args->result.size(); i++)
+            extract_base_features(resized_img,
+                                  args->result[i],
+                                  base_feature + 23 * i);
+        extract_mean_feature(base_feature, mean_feature, args->result.size());
+        taskYIELD();
+        for (size_t i = 0; i < args->result.size(); i++)
+        {
+            bool res = inference(resized_img, args->result, i, base_feature, mean_feature);
+            if (res)
+            {
+                xSemaphoreGive(args->abnormal);
+                break;
+            }
+        }
     }
 }
 

@@ -48,7 +48,7 @@ void extract_base_features(const dl::image::img_t &src,
             // 计算直方图
             color_histogram[0][r >> 6] += 1;
             color_histogram[1][g >> 6] += 1;
-            color_histogram[1][b >> 6] += 1;
+            color_histogram[2][b >> 6] += 1;
         }
     }
     uint16_t area_size = (right_x - left_x) * (right_y - left_y);
@@ -56,16 +56,19 @@ void extract_base_features(const dl::image::img_t &src,
         color_monent[i] = static_cast<float>(color_monent_temp[i]) / area_size;
     for (uint16_t i = 1; i < 8; i += 2)
     {
-        float total_var = static_cast<float>(color_monent_temp[i] - color_monent_temp[i - 1] * color_monent_temp[i - 1]);
-        color_monent[i] = std::sqrt(total_var) / area_size;
+        float mean = static_cast<float>(color_monent_temp[i - 1]) / area_size;
+        float sq_mean = static_cast<float>(color_monent_temp[i]) / area_size;
+        color_monent[i] = std::sqrt(sq_mean - mean * mean);
     }
     for (uint16_t i = 0; i < 3; i++)
-        for (uint16_t j = 1; j < 4; j++)
+        for (uint16_t j = 0; j < 4; j++)
             color_histogram[i][j] /= area_size;
 
     float area = static_cast<float>(area_size) / (src.width * src.height);
-    float aspect_ratio = static_cast<float>(right_x - left_x) / (right_y - right_x);
-    float compactness = 4 * std::numbers::pi * (src.width * src.height) / (2 * src.width + 2 * src.height);
+    float aspect_ratio = static_cast<float>(right_x - left_x) / (right_y - left_y);
+    float cw = right_x - left_x;
+    float ch = right_y - left_y;
+    float compactness = std::numbers::pi * cw * ch / ((cw + ch) * (cw + ch));
 
     // 总长度：23
     memcpy(base_feature, color_monent, sizeof(color_monent));
@@ -79,6 +82,7 @@ void extract_mean_feature(float *base_feature,
                           float *mean_feature,
                           uint32_t size)
 {
+    memset(mean_feature, 0, 23 * sizeof(float));
     for (uint16_t i = 0; i < size; i++)
     {
         for (int j = 0; j < 23; j++)
@@ -96,8 +100,8 @@ bool inference(const dl::image::img_t &src,
 {
     float input_feature[27];
     memset(input_feature, 0, sizeof(input_feature));
-    int ori_center_x = (result[index].box[0] + result[index].box[2]) / 2;
-    int ori_center_y = (result[index].box[1] + result[index].box[3]) / 2;
+    float ori_cx = static_cast<float>(result[index].box[0] + result[index].box[2]) / 2.0f / src.width;
+    float ori_cy = static_cast<float>(result[index].box[1] + result[index].box[3]) / 2.0f / src.height;
 
     for (int i = 0; i < 23; i++)
     {
@@ -108,7 +112,7 @@ bool inference(const dl::image::img_t &src,
     input_feature[23] = std::sqrt(input_feature[23]);
 
     float similar_cnt = 0;
-    float nearest_dist2 = src.width * src.width + src.height * src.height;
+    float nearest_dist2 = 2.0f;
     int local_density = 0;
     for (size_t i = 0; i < result.size(); i++)
     {
@@ -116,22 +120,22 @@ bool inference(const dl::image::img_t &src,
             continue;
 
         float distance2 = 0;
-        for (size_t j = 9; j < 23; j++)
+        for (size_t j = 0; j < 23; j++)
         {
             float diff = *(base_feature + 23 * i + j) - *(base_feature + 23 * index + j);
             distance2 += diff * diff;
         }
-        if (distance2 <= 0.5 * 0.5)
+        if (distance2 <= 0.5f * 0.5f)
             similar_cnt++;
 
-        int center_x = (result[i].box[0] + result[i].box[2]) / 2;
-        int center_y = (result[i].box[1] + result[i].box[3]) / 2;
-        int colony_distance2 = (center_x - ori_center_x) * (center_x - ori_center_x) + (center_y - ori_center_y) * (center_y - ori_center_y);
+        float cx = static_cast<float>(result[i].box[0] + result[i].box[2]) / 2.0f / src.width;
+        float cy = static_cast<float>(result[i].box[1] + result[i].box[3]) / 2.0f / src.height;
+        float colony_distance2 = (cx - ori_cx) * (cx - ori_cx) + (cy - ori_cy) * (cy - ori_cy);
         nearest_dist2 = colony_distance2 < nearest_dist2 ? colony_distance2 : nearest_dist2;
-        if (colony_distance2 < 0.1 * 0.1 * src.width * src.height)
+        if (colony_distance2 < 0.3f * 0.3f)
             local_density++;
     }
-    similar_cnt /= src.width * src.height;
+    similar_cnt /= (result.size() - 1);
     input_feature[24] = similar_cnt;
     input_feature[25] = std::sqrt(nearest_dist2);
     input_feature[26] = local_density;

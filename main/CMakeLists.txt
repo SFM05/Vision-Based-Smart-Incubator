@@ -52,7 +52,8 @@ set(include_dirs "."
                  "tcd"
                  "sdcard"
                  "cam"
-                 "led")
+                 "led"
+                 "abnormal_detect")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

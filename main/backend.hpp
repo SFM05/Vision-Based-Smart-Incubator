@@ -43,6 +43,14 @@ struct inference_process_args
 };
 void inference_process(void *argv);
 
+struct detect_abnormal_process_args{
+    dl::image::img_t &cropped_buf;
+    std::vector<dl::detect::result_t> &result;
+    SemaphoreHandle_t &start_detect;
+    SemaphoreHandle_t &abnormal;
+};
+void detect_abnormal_process(void* argv);
+
 struct upload_request_process_args
 {
     QueueHandle_t &request_upload;
@@ -63,10 +71,3 @@ struct report_env_process_args
     std::atomic<uint16_t> &delay;
 };
 void report_env_process(void *argv);
-
-// struct draw_box_process_args
-// {
-//     dl::image::img_t &cropped_buf;
-//     std::vector<dl::detect::result_t> result;
-// };
-// void draw_box_process(void *argv);
