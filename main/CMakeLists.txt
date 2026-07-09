@@ -2,8 +2,9 @@ set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
          "sensors/sensor.c"
-         "yolo26/yolo_inference.cpp"
-         "yolo26/image_auto.cpp"
+         "sensors/sht3x.cpp"
+         # "yolo26/yolo_inference.cpp"
+         # "yolo26/image_auto.cpp"
          "ui/custom.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
@@ -24,6 +25,7 @@ set(requires esp_lcd
              esp_video
              esp_driver_spi
              esp_driver_i2c
+             esp_driver_uart
              esp_lcd_st7796
              esp_lcd_touch_ft5x06
              espressif__esp_sccb_intf

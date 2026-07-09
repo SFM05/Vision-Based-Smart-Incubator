@@ -17,6 +17,7 @@
 #include "lvgl.h"
 #include "misc/lv_color.h"
 #include "portmacro.h"
+#include "sht3x.hpp"
 #include "widgets/lv_canvas.h"
 #include "widgets/lv_label.h"
 #include <cstddef>
@@ -154,10 +155,10 @@ esp_err_t init(esp_lcd_panel_handle_t panel,
 
 void draw_box(dl::image::img_t &img, const dl::detect::result_t &result)
 {
-    const int left_up_x = result.box[0]/2;
-    const int left_up_y = result.box[1]/2;
-    const int right_down_x = result.box[2]/2;
-    const int right_down_y = result.box[3]/2;
+    const int left_up_x = result.box[0] / 2;
+    const int left_up_y = result.box[1] / 2;
+    const int right_down_x = result.box[2] / 2;
+    const int right_down_y = result.box[3] / 2;
     uint16_t *img_pix = reinterpret_cast<uint16_t *>(img.data);
 
     for (int x = left_up_x; x <= right_down_x; x++)
@@ -227,66 +228,52 @@ void image_display_process(void *argv)
 
 void env_display_process(void *argv)
 {
-    auto bus=static_cast<i2c_master_bus_handle_t *>(argv);
+    auto bus = static_cast<i2c_master_bus_handle_t *>(argv);
     const char *TAG = "env display";
-    sensors_data_t data;
-    uint8_t cnt;
+    // sensors_data_t data;
+    sensor::SHT3x_data data;
+    // uint8_t cnt;
 
     while (true)
     {
-        cnt = 0;
-        do
-        {
-            xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-            sensors_driver_read(&data);
-            xSemaphoreGive(i2c_mutex);
-            if (data.sht_valid)
-            {
-                lv_lock();
-                lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
-                                      "Temp: %.1f", data.temperature_c);
-                lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
-                                      "Hum: %.1f", data.humidity_rh);
-                lv_obj_invalidate(guider_ui.screen_1_Temperature);
-                lv_obj_invalidate(guider_ui.screen_1_Humidity);
-                lv_unlock();
-                break;
-            }
-            cnt++;
-            vTaskDelay(pdMS_TO_TICKS(5));
-        } while (cnt < 5);
-        if (!data.sht_valid)
-        {
-            lv_lock();
-            lv_label_set_text(guider_ui.screen_1_Temperature, "Temp: Err");
-            lv_label_set_text(guider_ui.screen_1_Humidity, "Hum: Err");
-            lv_obj_invalidate(guider_ui.screen_1_Temperature);
-            lv_obj_invalidate(guider_ui.screen_1_Humidity);
-            lv_unlock();
-            i2c_master_bus_reset(*bus);
-        }
+        data = sensor::SHT3x::instance().read_data();
+        lv_lock();
+        lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
+                              "Temp: %.1f", data.temp);
+        lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
+                              "Hum: %.1f", data.hum);
+        lv_obj_invalidate(guider_ui.screen_1_Temperature);
+        lv_obj_invalidate(guider_ui.screen_1_Humidity);
+        lv_unlock();
 
         // cnt = 0;
         // do
         // {
+        //     xSemaphoreTake(i2c_mutex, portMAX_DELAY);
         //     sensors_driver_read(&data);
-        //     if (data.sgp_valid)
+        //     xSemaphoreGive(i2c_mutex);
+        //     if (data.sht_valid)
         //     {
         //         lv_lock();
-        //         lv_label_set_text_fmt(guider_ui.screen_1_CO2,
-        //                               "CO2: %d", data.eco2_ppm);
-        //         lv_obj_invalidate(guider_ui.screen_1_CO2);
+        //         lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
+        //                               "Temp: %.1f", data.temperature_c);
+        //         lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
+        //                               "Hum: %.1f", data.humidity_rh);
+        //         lv_obj_invalidate(guider_ui.screen_1_Temperature);
+        //         lv_obj_invalidate(guider_ui.screen_1_Humidity);
         //         lv_unlock();
         //         break;
         //     }
         //     cnt++;
         //     vTaskDelay(pdMS_TO_TICKS(5));
         // } while (cnt < 5);
-        // if (!data.sgp_valid)
+        // if (!data.sht_valid)
         // {
         //     lv_lock();
-        //     lv_label_set_text(guider_ui.screen_1_CO2, "CO2: Err");
-        //     lv_obj_invalidate(guider_ui.screen_1_CO2);
+        //     lv_label_set_text(guider_ui.screen_1_Temperature, "Temp: Err");
+        //     lv_label_set_text(guider_ui.screen_1_Humidity, "Hum: Err");
+        //     lv_obj_invalidate(guider_ui.screen_1_Temperature);
+        //     lv_obj_invalidate(guider_ui.screen_1_Humidity);
         //     lv_unlock();
         //     i2c_master_bus_reset(*bus);
         // }
