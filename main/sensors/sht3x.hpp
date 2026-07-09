@@ -32,6 +32,8 @@ namespace sensor
         {
             return SHT3x_data{m_temp.load(), m_hum.load()};
         }
+        float temp() { return m_temp.load(); }
+        float hum() { return m_hum.load(); }
 
         friend void uart_event_task(void *argv);
 

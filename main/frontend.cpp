@@ -231,17 +231,19 @@ void env_display_process(void *argv)
     auto bus = static_cast<i2c_master_bus_handle_t *>(argv);
     const char *TAG = "env display";
     // sensors_data_t data;
-    sensor::SHT3x_data data;
+    // sensor::SHT3x_data data;
     // uint8_t cnt;
 
     while (true)
     {
-        data = sensor::SHT3x::instance().read_data();
+        // data = sensor::SHT3x::instance().read_data();
+        float temp=sensor::SHT3x::instance().temp();
+        float hum=sensor::SHT3x::instance().hum();
         lv_lock();
         lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
-                              "Temp: %.1f", data.temp);
+                              "Temp: %.1f", temp);
         lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
-                              "Hum: %.1f", data.hum);
+                              "Hum: %.1f", hum);
         lv_obj_invalidate(guider_ui.screen_1_Temperature);
         lv_obj_invalidate(guider_ui.screen_1_Humidity);
         lv_unlock();
@@ -279,6 +281,6 @@ void env_display_process(void *argv)
         // }
 
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

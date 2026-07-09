@@ -1,10 +1,13 @@
 #include "driver/uart.h"
 #include "esp_err.h"
+#include "esp_heap_caps.h"
+#include "esp_log.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "hal/uart_types.h"
 #include "soc/gpio_num.h"
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
@@ -52,7 +55,8 @@ namespace sensor
     void SHT3x::uart_event_task(void *argv)
     {
         uart_event_t event;
-        uint8_t dtmp[BUF_SIZE];
+        char *dtmp;
+        dtmp = static_cast<char *>(heap_caps_malloc(BUF_SIZE, MALLOC_CAP_SPIRAM));
         float temp;
         float hum;
 
@@ -69,10 +73,13 @@ namespace sensor
                                     event.size,
                                     portMAX_DELAY);
                     // 处理接收到的数据
-                    sscanf(reinterpret_cast<char *>(dtmp),
-                           "R%fRH %fC\r\n", &hum, &temp);
+                    // R:049.3RH 026.8C\r\n
+                    hum = (dtmp[2] - '0') * 100 + (dtmp[3] - '0') * 10 + (dtmp[4] - '0') + (dtmp[6] - '0') / 10.0;
+                    temp = (dtmp[10] - '0') * 100 + (dtmp[11] - '0') * 10 + (dtmp[12] - '0') + (dtmp[14] - '0') / 10.0;
                     instance().m_hum.store(hum);
                     instance().m_temp.store(temp);
+                    // dtmp[16] = '\0';
+                    // ESP_LOGI("SHT3x", "msg= %s, T= %f, RH= %f", dtmp, temp, hum);
                 }
             }
         }

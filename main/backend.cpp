@@ -305,7 +305,7 @@ void report_env_process(void *argv)
     const char *TAG = "report env";
     auto args = static_cast<report_env_process_args *>(argv);
     // sensors_data_t data;
-    sensor::SHT3x_data data;
+    // sensor::SHT3x_data data;
     char current_day[20];
     char current_time[20];
     TickType_t last_wake_time;
@@ -319,7 +319,9 @@ void report_env_process(void *argv)
         last_wake_time = xTaskGetTickCount();
 
         // sensors_driver_read(&data);
-        data=sensor::SHT3x::instance().read_data();
+        // data=sensor::SHT3x::instance().read_data();
+        float temp=sensor::SHT3x::instance().temp();
+        float hum=sensor::SHT3x::instance().hum();
         time_t now = time(NULL); // 秒级时间戳
         tm tm_info;
         localtime_r(&now, &tm_info); // 转本地时间
@@ -360,10 +362,10 @@ void report_env_process(void *argv)
         //     hum = NAN;
         // }
 
-        IOT::report_env(data.temp, data.hum, 0);
+        IOT::report_env(temp, hum, 0);
         file.close(); // 关闭文件
 
-        ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f", data.temp, data.hum);
+        ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f", temp, hum);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         xTaskDelayUntil(&last_wake_time,
                         pdMS_TO_TICKS(args->delay.load()));
