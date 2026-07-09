@@ -17,6 +17,7 @@ set(srcs "main.cpp"
          "cam/cam.cpp"
          "tcd/tcd.cpp"
          "led/led.cpp"
+         "abnormal_detect/abnormal_detect.cpp"
          "frontend.cpp"
          "backend.cpp")
 set(requires esp_lcd
