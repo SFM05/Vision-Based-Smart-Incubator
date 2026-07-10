@@ -216,17 +216,21 @@ void inference_process(void *argv)
             ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
         }
 
+        xSemaphoreGive(args->start_detect);
+
         // 通知上传任务
-        xSemaphoreGive(args->inference_end);
+        // xSemaphoreGive(args->inference_end);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
     }
 }
 
 void detect_abnormal_process(void *argv)
 {
+    const char *TAG = "detect abnormal";
     auto args = static_cast<detect_abnormal_process_args *>(argv);
 
     float *base_feature;
+    bool status;
     constexpr int TARGET_K = 128;
     base_feature = static_cast<float *>(heap_caps_malloc(23 * TARGET_K * sizeof(float),
                                                          MALLOC_CAP_SPIRAM));
@@ -254,15 +258,19 @@ void detect_abnormal_process(void *argv)
                                   base_feature + 23 * i);
         extract_mean_feature(base_feature, mean_feature, args->result.size());
         taskYIELD();
+        status = false;
         for (size_t i = 0; i < args->result.size(); i++)
         {
             bool res = inference(resized_img, args->result, i, base_feature, mean_feature);
             if (res)
             {
-                xSemaphoreGive(args->abnormal);
+                status = true;
                 break;
             }
         }
+        xSemaphoreGive(args->inference_end);
+        xQueueSend(args->status, &status, pdMS_TO_TICKS(500));
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
     }
 }
 

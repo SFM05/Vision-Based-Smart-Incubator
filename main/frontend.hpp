@@ -38,3 +38,5 @@ struct image_display_process_args
 void image_display_process(void *argv);
 
 void env_display_process(void *argv);
+
+void show_abnormal_process(void *argv);

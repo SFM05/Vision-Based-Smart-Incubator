@@ -38,7 +38,7 @@ struct inference_process_args
     YOLO26 &processor;
     std::vector<dl::detect::result_t> &result;
     QueueHandle_t &start_inference;
-    SemaphoreHandle_t &inference_end;
+    SemaphoreHandle_t &start_detect;
     SemaphoreHandle_t &capture_inference_mutex;
 };
 void inference_process(void *argv);
@@ -47,7 +47,8 @@ struct detect_abnormal_process_args{
     dl::image::img_t &cropped_buf;
     std::vector<dl::detect::result_t> &result;
     SemaphoreHandle_t &start_detect;
-    SemaphoreHandle_t &abnormal;
+    SemaphoreHandle_t &inference_end;
+    QueueHandle_t &status;
 };
 void detect_abnormal_process(void* argv);
 

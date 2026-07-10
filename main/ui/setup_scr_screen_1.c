@@ -152,56 +152,56 @@ void setup_scr_screen_1(lv_ui *ui)
     lv_obj_set_style_pad_left(ui->screen_1_Humidity, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_1_Humidity, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_1_CO2
-    ui->screen_1_CO2 = lv_label_create(ui->screen_1);
-    lv_label_set_text(ui->screen_1_CO2, "CO2:");
-    lv_label_set_long_mode(ui->screen_1_CO2, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->screen_1_CO2, 325, 150);
-    lv_obj_set_size(ui->screen_1_CO2, 155, 50);
+    // //Write codes screen_1_CO2
+    // ui->screen_1_CO2 = lv_label_create(ui->screen_1);
+    // lv_label_set_text(ui->screen_1_CO2, "CO2:");
+    // lv_label_set_long_mode(ui->screen_1_CO2, LV_LABEL_LONG_WRAP);
+    // lv_obj_set_pos(ui->screen_1_CO2, 325, 150);
+    // lv_obj_set_size(ui->screen_1_CO2, 155, 50);
 
-    //Write style for screen_1_CO2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_border_width(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_color(ui->screen_1_CO2, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui->screen_1_CO2, &lv_font_montserrat_24, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui->screen_1_CO2, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_letter_space(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_line_space(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui->screen_1_CO2, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // //Write style for screen_1_CO2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_border_width(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_color(ui->screen_1_CO2, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_font(ui->screen_1_CO2, &lv_font_montserrat_24, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_opa(ui->screen_1_CO2, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_letter_space(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_line_space(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_align(ui->screen_1_CO2, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_top(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_right(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_bottom(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_left(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_shadow_width(ui->screen_1_CO2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_1_Time_until_next
-    ui->screen_1_Time_until_next = lv_label_create(ui->screen_1);
-    lv_label_set_text(ui->screen_1_Time_until_next, "Time until next:");
-    lv_label_set_long_mode(ui->screen_1_Time_until_next, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->screen_1_Time_until_next, 325, 200);
-    lv_obj_set_size(ui->screen_1_Time_until_next, 155, 50);
+    // //Write codes screen_1_Time_until_next
+    // ui->screen_1_Time_until_next = lv_label_create(ui->screen_1);
+    // lv_label_set_text(ui->screen_1_Time_until_next, "Time until next:");
+    // lv_label_set_long_mode(ui->screen_1_Time_until_next, LV_LABEL_LONG_WRAP);
+    // lv_obj_set_pos(ui->screen_1_Time_until_next, 325, 200);
+    // lv_obj_set_size(ui->screen_1_Time_until_next, 155, 50);
 
-    //Write style for screen_1_Time_until_next, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_border_width(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_color(ui->screen_1_Time_until_next, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui->screen_1_Time_until_next, &lv_font_montserrat_16, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui->screen_1_Time_until_next, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_letter_space(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_line_space(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui->screen_1_Time_until_next, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // //Write style for screen_1_Time_until_next, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_border_width(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_color(ui->screen_1_Time_until_next, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_font(ui->screen_1_Time_until_next, &lv_font_montserrat_16, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_opa(ui->screen_1_Time_until_next, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_letter_space(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_line_space(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_align(ui->screen_1_Time_until_next, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_top(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_right(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_bottom(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_left(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_shadow_width(ui->screen_1_Time_until_next, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_1_led
     ui->screen_1_led = lv_led_create(ui->screen_1);
     lv_led_set_brightness(ui->screen_1_led, 255);
-    lv_led_set_color(ui->screen_1_led, lv_color_hex(0xff0027));
+    lv_led_set_color(ui->screen_1_led, lv_color_hex(0x7FFF00));
     lv_obj_set_pos(ui->screen_1_led, 460, 10);
     lv_obj_set_size(ui->screen_1_led, 10, 10);
 

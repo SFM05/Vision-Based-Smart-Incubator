@@ -246,13 +246,15 @@ extern "C" void app_main(void)
     static YOLO26 processor = YOLO26(model, TARGET_K, CONF_THRESH, names);
     static std::vector<dl::detect::result_t> result;
     result.reserve(TARGET_K);
+    static SemaphoreHandle_t start_detect;
+    start_detect = xSemaphoreCreateBinary();
     static inference_process_args inference_args{
         cropped_buf,
         model,
         processor,
         result,
         capture_inference_queue,
-        inference_end,
+        start_detect,
         capture_inference_mutex};
     xTaskCreate(inference_process,
                 "Inference",
@@ -274,7 +276,8 @@ extern "C" void app_main(void)
 
     // 启动真实上传任务
     constexpr size_t HTTP_BUFFER_SIZE = 1024;
-    static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_aligned_alloc(16, HTTP_BUFFER_SIZE,
+    static uint8_t *buffer = static_cast<uint8_t *>(heap_caps_aligned_alloc(16,
+                                                                            HTTP_BUFFER_SIZE,
                                                                             MALLOC_CAP_SPIRAM));
     static upload_process_args upload_args{
         upload_feed_back_queue,
@@ -284,6 +287,22 @@ extern "C" void app_main(void)
                 "Upload",
                 8192,
                 &upload_args,
+                1,
+                nullptr);
+
+    // 启动杂菌检测任务
+    static QueueHandle_t status;
+    status = xQueueCreate(2, sizeof(bool));
+    static detect_abnormal_process_args detect_abnormal_args{
+        cropped_buf,
+        result,
+        start_detect,
+        inference_end,
+        status};
+    xTaskCreate(detect_abnormal_process,
+                "Detect Abnormal",
+                8192,
+                &detect_abnormal_args,
                 1,
                 nullptr);
 
@@ -349,6 +368,13 @@ extern "C" void app_main(void)
                 "Env Display",
                 5120,
                 &bus,
+                1,
+                nullptr);
+
+    xTaskCreate(show_abnormal_process,
+                "Show Abnormal",
+                1024,
+                &status,
                 1,
                 nullptr);
 
