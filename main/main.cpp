@@ -19,7 +19,7 @@
 #include "hal/gpio_types.h"
 #include "hal/lv_hal_disp.h"
 #include "hal/spi_types.h"
-#include "sensor.h"
+// #include "sensor.h"
 #include "soc/gpio_num.h"
 #include "st7796_driver.hpp"
 #include "ui/gui_guider.h"
@@ -42,6 +42,7 @@ extern "C"
 #include "cam.hpp"
 #include "custom.hpp"
 #include "frontend.hpp"
+#include "sht3x.hpp"
 
 static const char *TAG = "main";
 
@@ -61,8 +62,11 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-// constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
-// constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
+constexpr gpio_num_t GPIO_SHT3x_TX=GPIO_NUM_20;
+constexpr gpio_num_t GPIO_SHT3x_RX=GPIO_NUM_21;
+
+constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
+constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
@@ -91,6 +95,9 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
 
+    sensor::SHT3x::instance().set_cfg(GPIO_SHT3x_TX, GPIO_SHT3x_RX);
+    sensor::SHT3x::instance().init();
+
     LCD::ST7796 panel{SPI3_HOST, W, H};
     panel.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
     panel.set_io_cfg(GPIO_CS, GPIO_RS, CLK_FREQUENCY);
@@ -117,7 +124,7 @@ extern "C" void app_main(void)
                            false,
                            true);
     ESP_ERROR_CHECK(touch.i2c_init());
-    sensors_driver_init(touch.i2c_handle());
+    // sensors_driver_init(touch.i2c_handle());
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
     i2c_mutex_init();

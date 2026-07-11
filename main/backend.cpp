@@ -1,4 +1,5 @@
 #include "esp_heap_caps.h"
+#include "sht3x.hpp"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -40,7 +41,8 @@ namespace fs = std::filesystem;
 #include "iot_utils.hpp"
 #include "mqtt.hpp"
 #include "sdcard.hpp"
-#include "sensor.h"
+// #include "sensor.h"
+#include "frontend.hpp"
 
 #include "backend.hpp"
 
@@ -355,22 +357,24 @@ void report_env_process(void *argv)
 {
     const char *TAG = "report env";
     auto args = static_cast<report_env_process_args *>(argv);
-    sensors_data_t data;
+    // sensors_data_t data;
+    // sensor::SHT3x_data data;
     char current_day[20];
     char current_time[20];
     TickType_t last_wake_time;
-    uint8_t cnt;
-    float temp, hum;
-    uint16_t co2;
+    // uint8_t cnt;
+    // float temp, hum;
+    // uint16_t co2;
     ESP_LOGI(TAG, "report env process start.");
 
     while (true)
     {
         last_wake_time = xTaskGetTickCount();
-        temp = hum = NAN;
-        co2 = 0xFFFF;
 
-        sensors_driver_read(&data);
+        // sensors_driver_read(&data);
+        // data=sensor::SHT3x::instance().read_data();
+        float temp=sensor::SHT3x::instance().temp();
+        float hum=sensor::SHT3x::instance().hum();
         time_t now = time(NULL); // 秒级时间戳
         tm tm_info;
         localtime_r(&now, &tm_info); // 转本地时间
@@ -386,53 +390,35 @@ void report_env_process(void *argv)
             continue;
         }
 
-        cnt = 0;
-        do
-        {
-            xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-            sensors_driver_read(&data);
-            xSemaphoreGive(i2c_mutex);
-            if (data.sht_valid)
-            {
-                file << std::format("{} {:<6.1f} {:<6.1f}\n",
-                                    current_time, data.temperature_c, data.humidity_rh);
-                temp = data.temperature_c;
-                hum = data.humidity_rh;
-                break;
-            }
-            cnt++;
-            vTaskDelay(pdMS_TO_TICKS(5));
-        } while (cnt < 5);
-        if (!data.sht_valid)
-        {
-            file << std::format("{} {:<6} {:<6}\n",
-                                current_time, "Err", "Err");
-            temp = NAN;
-            hum = NAN;
-        }
-
         // cnt = 0;
         // do
         // {
+        //     xSemaphoreTake(i2c_mutex, portMAX_DELAY);
         //     sensors_driver_read(&data);
-        //     if (data.sgp_valid)
+        //     xSemaphoreGive(i2c_mutex);
+        //     if (data.sht_valid)
         //     {
-        //         file << std::format("{:<6}\n", data.eco2_ppm);
-        //         co2 = data.eco2_ppm;
+        //         file << std::format("{} {:<6.1f} {:<6.1f}\n",
+        //                             current_time, data.temperature_c, data.humidity_rh);
+        //         temp = data.temperature_c;
+        //         hum = data.humidity_rh;
         //         break;
         //     }
         //     cnt++;
         //     vTaskDelay(pdMS_TO_TICKS(5));
         // } while (cnt < 5);
-        // if (!data.sgp_valid)
+        // if (!data.sht_valid)
         // {
-        //     file << std::format("{:<6}\n", "Err");
-        //     co2 = 0xFFFF;
+        //     file << std::format("{} {:<6} {:<6}\n",
+        //                         current_time, "Err", "Err");
+        //     temp = NAN;
+        //     hum = NAN;
         // }
-        IOT::report_env(temp, hum, co2);
+
+        IOT::report_env(temp, hum, 0);
         file.close(); // 关闭文件
 
-        ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f, CO2: %d", temp, hum, co2);
+        ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f", temp, hum);
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         xTaskDelayUntil(&last_wake_time,
                         pdMS_TO_TICKS(args->delay.load()));
