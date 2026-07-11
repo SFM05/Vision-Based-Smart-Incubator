@@ -10,8 +10,8 @@
 #include <cassert>
 #include <vector>
 
-inline SemaphoreHandle_t i2c_mutex;
-inline void i2c_mutex_init() { i2c_mutex = xSemaphoreCreateMutex(); }
+// inline SemaphoreHandle_t i2c_mutex;
+// inline void i2c_mutex_init() { i2c_mutex = xSemaphoreCreateMutex(); }
 
 inline SemaphoreHandle_t lv_handle = NULL;
 inline void lv_mutex_init()

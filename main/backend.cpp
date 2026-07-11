@@ -336,13 +336,16 @@ void upload_process(void *argv)
 
         if (cJSON_GetObjectItem(root, "success")->type == cJSON_True)
         {
-            IOT::upload_file(cJSON_GetObjectItem(root, "url")->valuestring,
-                             cJSON_GetObjectItem(root, "path")->valuestring,
-                             args->buffer,
-                             args->size);
-            ESP_LOGI(TAG, "Upload %s to %s.",
-                     cJSON_GetObjectItem(root, "url")->valuestring,
-                     cJSON_GetObjectItem(root, "path")->valuestring);
+            esp_err_t err = IOT::upload_file(cJSON_GetObjectItem(root, "url")->valuestring,
+                                             cJSON_GetObjectItem(root, "path")->valuestring,
+                                             args->buffer,
+                                             args->size);
+            if (err == ESP_OK)
+                ESP_LOGI(TAG, "Upload %s to %s.",
+                         cJSON_GetObjectItem(root, "url")->valuestring,
+                         cJSON_GetObjectItem(root, "path")->valuestring);
+            else
+                ESP_LOGE(TAG, "Upload failed.");
         }
         else
         {
@@ -373,8 +376,8 @@ void report_env_process(void *argv)
 
         // sensors_driver_read(&data);
         // data=sensor::SHT3x::instance().read_data();
-        float temp=sensor::SHT3x::instance().temp();
-        float hum=sensor::SHT3x::instance().hum();
+        float temp = sensor::SHT3x::instance().temp();
+        float hum = sensor::SHT3x::instance().hum();
         time_t now = time(NULL); // 秒级时间戳
         tm tm_info;
         localtime_r(&now, &tm_info); // 转本地时间
@@ -415,7 +418,7 @@ void report_env_process(void *argv)
         //     hum = NAN;
         // }
 
-        IOT::report_env(temp, hum, 0);
+        IOT::report_env(temp, hum);
         file.close(); // 关闭文件
 
         ESP_LOGI(TAG, "Temp: %.1f, Hum: %.1f", temp, hum);

@@ -10,6 +10,7 @@
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include <atomic>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -62,11 +63,11 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_SHT3x_TX=GPIO_NUM_20;
-constexpr gpio_num_t GPIO_SHT3x_RX=GPIO_NUM_21;
+constexpr gpio_num_t GPIO_SHT3x_TX = GPIO_NUM_20;
+constexpr gpio_num_t GPIO_SHT3x_RX = GPIO_NUM_21;
 
-constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
-constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
+// constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
+// constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
@@ -94,9 +95,6 @@ extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "=== Vision-Based Smart Incubator ===");
     vTaskPrioritySet(NULL, 5);
-
-    sensor::SHT3x::instance().set_cfg(GPIO_SHT3x_TX, GPIO_SHT3x_RX);
-    sensor::SHT3x::instance().init();
 
     LCD::ST7796 panel{SPI3_HOST, W, H};
     panel.set_spi_cfg(GPIO_MOSI, GPIO_CLK);
@@ -127,7 +125,7 @@ extern "C" void app_main(void)
     // sensors_driver_init(touch.i2c_handle());
     ESP_ERROR_CHECK(touch.io_init());
     esp_err_t terr = touch.touch_init();
-    i2c_mutex_init();
+    // i2c_mutex_init();
     if (terr != ESP_OK)
     {
         ESP_LOGW(TAG, "Touch init failed (%s), continuing", esp_err_to_name(terr));
@@ -192,14 +190,24 @@ extern "C" void app_main(void)
     mqtt_event_handler_args mqtt_event_args{upload_feed_back_queue};
     if (ETH::Ethernet::instance().status())
     {
-        IOT::ntp_time_sync();
-
         MQTT::MQTT::instance().set_mqtt_cfg(CONFIG_IOT_MQTT_SERVER,
                                             CONFIG_IOT_MQTT_USERNAME,
                                             CONFIG_IOT_MQTT_PASSWORD);
         MQTT::MQTT::instance().mqtt_init(mqtt_event_handler,
                                          &mqtt_event_args);
+
+        esp_mqtt_client_publish(MQTT::MQTT::instance().mqtt_handle(),
+                                std::format("device/{}/time", IOT::get_mac()).c_str(),
+                                "",
+                                0,
+                                1,
+                                0);
+
+        IOT::ntp_time_sync();
     }
+
+    sensor::SHT3x::instance().set_cfg(GPIO_SHT3x_TX, GPIO_SHT3x_RX);
+    sensor::SHT3x::instance().init();
 
     // 启动捕捉任务
     static dl::image::img_t cropped_buf{
@@ -442,14 +450,22 @@ void mqtt_event_handler(void *argv,
         // printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         {
             size_t len = event->topic_len;
+            char msg[512] = {};
+            int copy_len = (event->data_len < 512) ? event->data_len : 512;
+            memcpy(msg, event->data, copy_len);
             if (len >= 7 && memcmp(event->topic + len - 7, "/upload", 7) == 0)
             {
-                char url[512] = {};
-                int copy_len = (event->data_len < 512) ? event->data_len : 512;
-                memcpy(url, event->data, copy_len);
-
                 if (args->upload_feedback_queue)
-                    xQueueSend(args->upload_feedback_queue, url, 0); // 0 = 不阻塞，满了就丢弃
+                    xQueueSend(args->upload_feedback_queue, msg, 0); // 0 = 不阻塞，满了就丢弃
+            }
+            if (len >= 7 && memcmp(event->topic + len - 5, "/time", 5) == 0)
+            {
+                struct timeval tv;
+                std::from_chars(msg, msg + strlen(msg), tv.tv_sec);
+                tv.tv_usec = 0;
+                settimeofday(&tv, NULL);
+                setenv("TZ", "CST-8", 1);
+                tzset();
             }
         }
         break;

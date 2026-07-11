@@ -224,7 +224,7 @@ namespace IOT
         return ESP_OK;
     }
 
-    esp_err_t report_env(float temp, float hum, uint16_t co2)
+    esp_err_t report_env(float temp, float hum)
     {
         if (!MQTT::MQTT::instance().mqtt_handle())
         {
@@ -234,8 +234,8 @@ namespace IOT
         time_t now = time(NULL);
         struct tm tm_info;
         localtime_r(&now, &tm_info);
-        char time[32];
-        strftime(time, sizeof(time), "%Y-%m-%d %H:%M:%S", &tm_info);
+        char time[20];
+        strftime(time, sizeof(time), "%Y%m%d-%H%M%S", &tm_info);
         if (time[0] != '2')
             memset(time, 0, sizeof(time));
 
@@ -243,7 +243,6 @@ namespace IOT
         cJSON_AddStringToObject(root, "timestamp", time);
         cJSON_AddNumberToObject(root, "temp", temp);
         cJSON_AddNumberToObject(root, "hum", hum);
-        cJSON_AddNumberToObject(root, "co2", co2);
         char *json_str = cJSON_PrintUnformatted(root);
 
         uint8_t mac[6];

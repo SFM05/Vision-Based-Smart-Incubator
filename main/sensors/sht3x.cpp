@@ -16,7 +16,7 @@
 namespace sensor
 {
     constexpr uart_port_t UART_PORT = UART_NUM_1;
-    constexpr int BUF_SIZE = 512;
+    constexpr int BUF_SIZE = 128;
     void SHT3x::init()
     {
         uart_config_t uart_cfg{

@@ -50,28 +50,28 @@ void setup_scr_screen_2(lv_ui *ui)
     lv_obj_set_style_text_opa(ui->screen_2_Button_screen2to1, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui->screen_2_Button_screen2to1, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_2_Temperature_2
-    ui->screen_2_Temperature_2 = lv_label_create(ui->screen_2);
-    lv_label_set_text(ui->screen_2_Temperature_2, "Temperature: 30.0");
-    lv_label_set_long_mode(ui->screen_2_Temperature_2, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(ui->screen_2_Temperature_2, 5, 4);
-    lv_obj_set_size(ui->screen_2_Temperature_2, 250, 25);
+    // //Write codes screen_2_Temperature_2
+    // ui->screen_2_Temperature_2 = lv_label_create(ui->screen_2);
+    // lv_label_set_text(ui->screen_2_Temperature_2, "Temperature: 30.0");
+    // lv_label_set_long_mode(ui->screen_2_Temperature_2, LV_LABEL_LONG_WRAP);
+    // lv_obj_set_pos(ui->screen_2_Temperature_2, 5, 4);
+    // lv_obj_set_size(ui->screen_2_Temperature_2, 250, 25);
 
-    //Write style for screen_2_Temperature_2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_border_width(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_color(ui->screen_2_Temperature_2, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui->screen_2_Temperature_2, &lv_font_montserrat_24, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui->screen_2_Temperature_2, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_letter_space(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_line_space(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ui->screen_2_Temperature_2, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // //Write style for screen_2_Temperature_2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_border_width(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_color(ui->screen_2_Temperature_2, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_font(ui->screen_2_Temperature_2, &lv_font_montserrat_24, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_opa(ui->screen_2_Temperature_2, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_letter_space(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_line_space(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_text_align(ui->screen_2_Temperature_2, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_top(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_right(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_bottom(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_pad_left(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_shadow_width(ui->screen_2_Temperature_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_2_Interval_time
     ui->screen_2_Interval_time = lv_label_create(ui->screen_2);
@@ -119,33 +119,33 @@ void setup_scr_screen_2(lv_ui *ui)
     lv_obj_set_style_pad_left(ui->screen_2_Count, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_2_Count, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_2_Temperature_slider
-    ui->screen_2_Temperature_slider = lv_slider_create(ui->screen_2);
-    lv_slider_set_range(ui->screen_2_Temperature_slider, 0, 100);
-    lv_slider_set_mode(ui->screen_2_Temperature_slider, LV_SLIDER_MODE_NORMAL);
-    lv_slider_set_value(ui->screen_2_Temperature_slider, 17, LV_ANIM_OFF);
-    lv_obj_set_pos(ui->screen_2_Temperature_slider, 30, 34);
-    lv_obj_set_size(ui->screen_2_Temperature_slider, 400, 20);
+    // //Write codes screen_2_Temperature_slider
+    // ui->screen_2_Temperature_slider = lv_slider_create(ui->screen_2);
+    // lv_slider_set_range(ui->screen_2_Temperature_slider, 0, 100);
+    // lv_slider_set_mode(ui->screen_2_Temperature_slider, LV_SLIDER_MODE_NORMAL);
+    // lv_slider_set_value(ui->screen_2_Temperature_slider, 17, LV_ANIM_OFF);
+    // lv_obj_set_pos(ui->screen_2_Temperature_slider, 30, 34);
+    // lv_obj_set_size(ui->screen_2_Temperature_slider, 400, 20);
 
-    //Write style for screen_2_Temperature_slider, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 60, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_outline_width(ui->screen_2_Temperature_slider, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_2_Temperature_slider, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // //Write style for screen_2_Temperature_slider, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 60, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_outline_width(ui->screen_2_Temperature_slider, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    // lv_obj_set_style_shadow_width(ui->screen_2_Temperature_slider, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write style for screen_2_Temperature_slider, Part: LV_PART_INDICATOR, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 255, LV_PART_INDICATOR|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_INDICATOR|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_INDICATOR|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_INDICATOR|LV_STATE_DEFAULT);
+    // //Write style for screen_2_Temperature_slider, Part: LV_PART_INDICATOR, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 255, LV_PART_INDICATOR|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_INDICATOR|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_INDICATOR|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_INDICATOR|LV_STATE_DEFAULT);
 
-    //Write style for screen_2_Temperature_slider, Part: LV_PART_KNOB, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 255, LV_PART_KNOB|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_KNOB|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_KNOB|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_KNOB|LV_STATE_DEFAULT);
+    // //Write style for screen_2_Temperature_slider, Part: LV_PART_KNOB, State: LV_STATE_DEFAULT.
+    // lv_obj_set_style_bg_opa(ui->screen_2_Temperature_slider, 255, LV_PART_KNOB|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui->screen_2_Temperature_slider, lv_color_hex(0x2195f6), LV_PART_KNOB|LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_grad_dir(ui->screen_2_Temperature_slider, LV_GRAD_DIR_NONE, LV_PART_KNOB|LV_STATE_DEFAULT);
+    // lv_obj_set_style_radius(ui->screen_2_Temperature_slider, 8, LV_PART_KNOB|LV_STATE_DEFAULT);
 
     //Write codes screen_2_Count_interval
     ui->screen_2_Count_interval = lv_dropdown_create(ui->screen_2);

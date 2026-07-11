@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "sensor.h"
+// #include "sensor.h"
 
 #include "frontend.hpp"
 
@@ -56,7 +56,7 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
 
 static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
-    xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+    // xSemaphoreTake(i2c_mutex, portMAX_DELAY);
     esp_lcd_touch_handle_t touch = (esp_lcd_touch_handle_t)drv->user_data;
     if (!touch)
     {
@@ -72,6 +72,7 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     if (err != ESP_OK)
     {
         data->state = LV_INDEV_STATE_REL;
+        ESP_LOGI("touch cb", "Cannot read data: %s", esp_err_to_name(err));
         return;
     }
 
@@ -90,7 +91,7 @@ static void lvgl_touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
     {
         data->state = LV_INDEV_STATE_REL;
     }
-    xSemaphoreGive(i2c_mutex);
+    // xSemaphoreGive(i2c_mutex);
 }
 
 esp_err_t init(esp_lcd_panel_handle_t panel,
@@ -229,7 +230,7 @@ void image_display_process(void *argv)
 
 void env_display_process(void *argv)
 {
-    auto bus = static_cast<i2c_master_bus_handle_t *>(argv);
+    // auto bus = static_cast<i2c_master_bus_handle_t *>(argv);
     const char *TAG = "env display";
     // sensors_data_t data;
     // sensor::SHT3x_data data;
@@ -238,8 +239,8 @@ void env_display_process(void *argv)
     while (true)
     {
         // data = sensor::SHT3x::instance().read_data();
-        float temp=sensor::SHT3x::instance().temp();
-        float hum=sensor::SHT3x::instance().hum();
+        float temp = sensor::SHT3x::instance().temp();
+        float hum = sensor::SHT3x::instance().hum();
         lv_lock();
         lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
                               "Temp: %.1f", temp);

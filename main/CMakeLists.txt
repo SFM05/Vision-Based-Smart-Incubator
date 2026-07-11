@@ -1,7 +1,6 @@
 set(srcs "main.cpp"
          "lcd/st7796_driver.cpp"
          "lcd/ft6336_driver.cpp"
-         "sensors/sensor.c"
          "sensors/sht3x.cpp"
          "ui/custom.cpp"
          "ui/gui_guider.c"
