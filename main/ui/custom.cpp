@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <format>
 
-#include "tcd.h"
+// #include "tcd.h"
 #include "widgets/lv_label.h"
 
 #include "custom.hpp"
@@ -17,22 +17,22 @@ extern "C"
 {
 #endif
     // 温度滑动条回调
-    void slider_temp_event_cb(lv_event_t *e)
-    {
-        if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED)
-        {
-            lv_obj_t *slider = lv_event_get_target(e);
-            int32_t val = lv_slider_get_value(slider); // 范围0-100
-            constexpr float MAX = 40.0;
-            constexpr float MIN = 28.0;
-            float temp = (MAX - MIN) * val / 100.0 + MIN;
-            tcd_set_target(temp);
-            // lv_lock();
-            lv_label_set_text_fmt(guider_ui.screen_2_Temperature_2, "Temperature: %.1f", temp);
-            lv_obj_invalidate(guider_ui.screen_2_Temperature_2);
-            // lv_unlock();
-        }
-    }
+    // void slider_temp_event_cb(lv_event_t *e)
+    // {
+    //     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED)
+    //     {
+    //         lv_obj_t *slider = lv_event_get_target(e);
+    //         int32_t val = lv_slider_get_value(slider); // 范围0-100
+    //         constexpr float MAX = 40.0;
+    //         constexpr float MIN = 28.0;
+    //         float temp = (MAX - MIN) * val / 100.0 + MIN;
+    //         tcd_set_target(temp);
+    //         // lv_lock();
+    //         lv_label_set_text_fmt(guider_ui.screen_2_Temperature_2, "Temperature: %.1f", temp);
+    //         lv_obj_invalidate(guider_ui.screen_2_Temperature_2);
+    //         // lv_unlock();
+    //     }
+    // }
 
     // 环境上报间隔回调
     void dropdown_report_env_event_cb(lv_event_t *e)

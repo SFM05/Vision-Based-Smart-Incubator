@@ -1,3 +1,4 @@
+#include "esp_heap_caps.h"
 #include "sht3x.hpp"
 #include <cmath>
 #include <cstddef>
@@ -10,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <unistd.h>
 namespace fs = std::filesystem;
 #include "cJSON.h"
@@ -33,9 +35,10 @@ namespace fs = std::filesystem;
 // #include "esp_video_device.h"
 // #include "esp_video_isp_ioctl.h"
 
+#include "abnormal_detect.hpp"
 #include "cam.hpp"
+#include "frontend.hpp"
 #include "iot_utils.hpp"
-#include "led.hpp"
 #include "mqtt.hpp"
 #include "sdcard.hpp"
 // #include "sensor.h"
@@ -72,7 +75,6 @@ void capture_process(void *argv)
 
         // 获取唤醒时间
         last_wake_time = xTaskGetTickCount();
-        LED::on(255);
         vTaskDelay(pdMS_TO_TICKS(500));
 
         // 接管帧缓冲区
@@ -107,7 +109,6 @@ void capture_process(void *argv)
         transformer.set_src_img_crop_area({420, 0, 1499, 1079});
         transformer.transform();
         ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf); // 归还帧缓冲区
-        LED::off();
         ESP_LOGI(TAG, "Get one frame.");
 
         // 帧信息
@@ -214,8 +215,60 @@ void inference_process(void *argv)
             ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
         }
 
+        xSemaphoreGive(args->start_detect);
+
         // 通知上传任务
+        // xSemaphoreGive(args->inference_end);
+        ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
+    }
+}
+
+void detect_abnormal_process(void *argv)
+{
+    const char *TAG = "detect abnormal";
+    auto args = static_cast<detect_abnormal_process_args *>(argv);
+
+    float *base_feature;
+    bool status;
+    constexpr int TARGET_K = 128;
+    base_feature = static_cast<float *>(heap_caps_malloc(23 * TARGET_K * sizeof(float),
+                                                         MALLOC_CAP_SPIRAM));
+    float mean_feature[23];
+    dl::image::img_t resized_img{
+        nullptr,
+        640,
+        640,
+        dl::image::DL_IMAGE_PIX_TYPE_RGB888};
+    resized_img.data = heap_caps_malloc(resized_img.bytes(), MALLOC_CAP_SPIRAM);
+    dl::image::ImageTransformer transformer;
+
+    while (true)
+    {
+        xSemaphoreTake(args->start_detect, portMAX_DELAY);
+
+        transformer.set_src_img(args->cropped_buf);
+        transformer.set_dst_img(args->cropped_buf);
+        transformer.transform();
+        taskYIELD();
+
+        for (size_t i = 0; i < args->result.size(); i++)
+            extract_base_features(resized_img,
+                                  args->result[i],
+                                  base_feature + 23 * i);
+        extract_mean_feature(base_feature, mean_feature, args->result.size());
+        taskYIELD();
+        status = false;
+        for (size_t i = 0; i < args->result.size(); i++)
+        {
+            bool res = inference(resized_img, args->result, i, base_feature, mean_feature);
+            if (res)
+            {
+                status = true;
+                break;
+            }
+        }
         xSemaphoreGive(args->inference_end);
+        xQueueSend(args->status, &status, pdMS_TO_TICKS(500));
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
     }
 }

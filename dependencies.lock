@@ -20,7 +20,7 @@ dependencies:
       type: service
     version: 0.5.3
   espressif/dl_fft:
-    component_hash: 2f319e72f3ab6f673c83849d6a14b68c21165d4dce24e12af7c13714ba35a6e0
+    component_hash: a955ca29581de2177ddf25759273bd83f082b3c805e735fe6ee105858643989b
     dependencies:
     - name: idf
       require: private
@@ -28,7 +28,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 0.5.0
+    version: 0.6.0
   espressif/esp-dl:
     component_hash: f85a2b0b7597af79ce55a4fe33366c59006fc889423ee8b12fbd3ba0d4bf22dc
     dependencies:
@@ -242,16 +242,6 @@ dependencies:
     - esp32
     - esp32p4
     version: 1.0.0
-  espressif/led_strip:
-    component_hash: 28621486f77229aaf81c71f5e15d6fbf36c2949cf11094e07090593e659e7639
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=5.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 3.0.3
   espressif/mqtt:
     component_hash: ffdad5659706b4dc14bc63f8eb73ef765efa015bf7e9adf71c813d52a2dc9342
     dependencies:
@@ -334,11 +324,10 @@ direct_dependencies:
 - espressif/esp_sccb_intf
 - espressif/esp_video
 - espressif/ip101
-- espressif/led_strip
 - espressif/mqtt
 - espressif/yolo26
 - idf
 - lvgl/lvgl
-manifest_hash: ecccb97db405bc8421f343c0a5e4f6870f9f48d993def3ac6ef2a94eb2736451
+manifest_hash: 699289a11dec3abbf78e50e7e5fa128ffd9a6d55459efcd08c5346a02ec5c087
 target: esp32p4
 version: 3.0.0

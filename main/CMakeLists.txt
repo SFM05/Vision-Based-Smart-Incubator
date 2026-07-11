@@ -3,8 +3,6 @@ set(srcs "main.cpp"
          "lcd/ft6336_driver.cpp"
          "sensors/sensor.c"
          "sensors/sht3x.cpp"
-         # "yolo26/yolo_inference.cpp"
-         # "yolo26/image_auto.cpp"
          "ui/custom.cpp"
          "ui/gui_guider.c"
          "ui/setup_scr_screen_1.c"
@@ -16,8 +14,7 @@ set(srcs "main.cpp"
          "iot/eth.cpp"
          "sdcard/sdcard.cpp"
          "cam/cam.cpp"
-         "tcd/tcd.cpp"
-         "led/led.cpp"
+         "abnormal_detect/abnormal_detect.cpp"
          "frontend.cpp"
          "backend.cpp")
 set(requires esp_lcd
@@ -47,13 +44,11 @@ set(requires esp_lcd
 set(include_dirs "."
                  "lcd"
                  "ui"
-                 "yolo26"
                  "sensors"
                  "iot"
-                 "tcd"
                  "sdcard"
                  "cam"
-                 "led")
+                 "abnormal_detect")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

@@ -11,6 +11,7 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_touch.h"
+#include "extra/widgets/led/lv_led.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "gui_guider.h"
@@ -282,5 +283,21 @@ void env_display_process(void *argv)
 
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void show_abnormal_process(void *argv)
+{
+    auto queue = static_cast<QueueHandle_t *>(argv);
+    bool status;
+
+    while (true)
+    {
+        xQueueReceive(*queue, &status, portMAX_DELAY);
+        if (status)
+            lv_led_set_color(guider_ui.screen_1_led, lv_color_hex(0xDC143C));
+        else
+            lv_led_set_color(guider_ui.screen_1_led, lv_color_hex(0x7FFF00));
+        lv_obj_invalidate(guider_ui.screen_1_led);
     }
 }
