@@ -38,7 +38,6 @@ namespace fs = std::filesystem;
 #include "cam.hpp"
 #include "frontend.hpp"
 #include "iot_utils.hpp"
-#include "led.hpp"
 #include "mqtt.hpp"
 #include "sdcard.hpp"
 #include "sensor.h"
@@ -74,7 +73,6 @@ void capture_process(void *argv)
 
         // 获取唤醒时间
         last_wake_time = xTaskGetTickCount();
-        LED::on(255);
         vTaskDelay(pdMS_TO_TICKS(500));
 
         // 接管帧缓冲区
@@ -109,7 +107,6 @@ void capture_process(void *argv)
         transformer.set_src_img_crop_area({420, 0, 1499, 1079});
         transformer.transform();
         ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf); // 归还帧缓冲区
-        LED::off();
         ESP_LOGI(TAG, "Get one frame.");
 
         // 帧信息

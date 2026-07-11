@@ -9,8 +9,6 @@
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
-#include "led.hpp"
-#include "led_strip.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -44,7 +42,6 @@ extern "C"
 #include "cam.hpp"
 #include "custom.hpp"
 #include "frontend.hpp"
-#include "tcd/tcd.h"
 
 static const char *TAG = "main";
 
@@ -64,8 +61,8 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
-constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
+// constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
+// constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
 
 constexpr unsigned int CLK_FREQUENCY = 10e6;
 
@@ -177,12 +174,6 @@ extern "C" void app_main(void)
             ESP_LOGW(TAG, "Camera init failed (%s)", esp_err_to_name(cam_err));
         }
     }
-
-    LED::init(GPIO_LED);
-    LED::off();
-
-    tcd_start(GPIO_TCD_HEATER);
-    // ESP_LOGI(TAG, "TCD Control Started");
 
     CAM::camera::instance().init_camera();
 
@@ -338,10 +329,10 @@ extern "C" void app_main(void)
                         dropdown_report_env_event_cb,
                         LV_EVENT_VALUE_CHANGED,
                         &report_env_delay);
-    lv_obj_add_event_cb(guider_ui.screen_2_Temperature_slider,
-                        slider_temp_event_cb,
-                        LV_EVENT_VALUE_CHANGED,
-                        nullptr);
+    // lv_obj_add_event_cb(guider_ui.screen_2_Temperature_slider,
+    //                     slider_temp_event_cb,
+    //                     LV_EVENT_VALUE_CHANGED,
+    //                     nullptr);
 
     static dl::image::img_t screen_buffer{
         nullptr,
