@@ -63,8 +63,8 @@ constexpr gpio_num_t GPIO_CTP_INT = GPIO_NUM_4;
 constexpr gpio_num_t GPIO_CAM_SDA = GPIO_NUM_7;
 constexpr gpio_num_t GPIO_CAM_SCL = GPIO_NUM_8;
 
-constexpr gpio_num_t GPIO_SHT3x_TX = GPIO_NUM_20;
-constexpr gpio_num_t GPIO_SHT3x_RX = GPIO_NUM_21;
+constexpr gpio_num_t GPIO_SHT3x_TX = GPIO_NUM_2;
+constexpr gpio_num_t GPIO_SHT3x_RX = GPIO_NUM_3;
 
 // constexpr gpio_num_t GPIO_TCD_HEATER = GPIO_NUM_22; // 加热片 PWM
 // constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
@@ -238,7 +238,7 @@ extern "C" void app_main(void)
         running};
     xTaskCreate(capture_process,
                 "Capture",
-                4096,
+                8192,
                 &capture_args,
                 1,
                 &capture_handle);
@@ -275,7 +275,7 @@ extern "C" void app_main(void)
         result};
     xTaskCreate(upload_request_process,
                 "Upload Request",
-                5120,
+                8192,
                 &upload_request_args,
                 1,
                 nullptr);

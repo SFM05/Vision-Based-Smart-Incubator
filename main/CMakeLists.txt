@@ -15,7 +15,8 @@ set(srcs "main.cpp"
          "cam/cam.cpp"
          "abnormal_detect/abnormal_detect.cpp"
          "frontend.cpp"
-         "backend.cpp")
+         "backend.cpp"
+         "yolo26/save_bmp.cpp")
 set(requires esp_lcd
              driver
              esp_video
@@ -47,7 +48,8 @@ set(include_dirs "."
                  "iot"
                  "sdcard"
                  "cam"
-                 "abnormal_detect")
+                 "abnormal_detect"
+                 "yolo26")
 
 # This is added before the registery for esp-dl
 idf_build_get_property(component_targets __COMPONENT_TARGETS)

@@ -65,17 +65,17 @@ void extract_base_features(const dl::image::img_t &src,
             color_histogram[i][j] /= area_size;
 
     float area = static_cast<float>(area_size) / (src.width * src.height);
-    float aspect_ratio = static_cast<float>(right_x - left_x) / (right_y - left_y);
-    float cw = right_x - left_x;
-    float ch = right_y - left_y;
-    float compactness = std::numbers::pi * cw * ch / ((cw + ch) * (cw + ch));
+    float w_norm = static_cast<float>(right_x - left_x) / src.width;
+    float h_norm = static_cast<float>(right_y - left_y) / src.height;
+    float aspect_ratio = w_norm / h_norm;
+    float compactness = std::numbers::pi * w_norm * h_norm / ((w_norm + h_norm) * (w_norm + h_norm));
 
     // 总长度：23
     memcpy(base_feature, color_monent, sizeof(color_monent));
-    memcpy(base_feature + sizeof(color_monent), color_histogram, sizeof(color_histogram));
-    *(base_feature + sizeof(color_monent) + sizeof(color_monent)) = area;
-    *(base_feature + sizeof(color_monent) + sizeof(color_monent) + 1) = aspect_ratio;
-    *(base_feature + sizeof(color_monent) + sizeof(color_monent) + 2) = compactness;
+    memcpy(base_feature + 8, color_histogram, sizeof(color_histogram));
+    base_feature[20] = area;
+    base_feature[21] = aspect_ratio;
+    base_feature[22] = compactness;
 }
 
 void extract_mean_feature(float *base_feature,
@@ -135,7 +135,7 @@ bool inference(const dl::image::img_t &src,
         if (colony_distance2 < 0.3f * 0.3f)
             local_density++;
     }
-    similar_cnt /= (result.size() - 1);
+    similar_cnt /= (result.size() > 1) ? static_cast<float>(result.size() - 1) : 1.0f;
     input_feature[24] = similar_cnt;
     input_feature[25] = std::sqrt(nearest_dist2);
     input_feature[26] = local_density;

@@ -1,5 +1,9 @@
+#include "save_bmp.hpp"
+#include "driver/gpio.h"
 #include "esp_heap_caps.h"
+#include "hal/gpio_types.h"
 #include "sht3x.hpp"
+#include "soc/gpio_num.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -49,17 +53,24 @@ namespace fs = std::filesystem;
 static const char *TAG = "backend";
 static constexpr int CROP_SIZE = 640;
 
+constexpr gpio_num_t GPIO_LED = GPIO_NUM_23;
+
 void capture_process(void *argv)
 {
     const char *TAG = "capture";
     ESP_LOGI(TAG, "Capture process started.");
     auto args = static_cast<capture_process_args *>(argv);
     TickType_t last_wake_time;
+
+    gpio_set_direction(GPIO_LED, GPIO_MODE_OUTPUT);
+
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     v4l2_buffer cam_buf{};
     cam_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     cam_buf.memory = V4L2_MEMORY_MMAP;
+
+    bool first_time = true;
 
     uint8_t *frame = nullptr;
 
@@ -75,7 +86,9 @@ void capture_process(void *argv)
 
         // 获取唤醒时间
         last_wake_time = xTaskGetTickCount();
-        vTaskDelay(pdMS_TO_TICKS(500));
+
+        gpio_set_level(GPIO_LED, 1);
+        vTaskDelay(pdMS_TO_TICKS(1000));
 
         // 接管帧缓冲区
         auto state = ioctl(CAM::camera::instance().fd(), VIDIOC_DQBUF, &cam_buf);
@@ -91,10 +104,21 @@ void capture_process(void *argv)
             continue;
         }
 
+        if (first_time)
+        {
+            ioctl(CAM::camera::instance().fd(), VIDIOC_QBUF, &cam_buf); // 归还帧缓冲区
+            // gpio_set_level(GPIO_LED, 0);
+            first_time = false;
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }
+        first_time = true;
+
         frame = static_cast<uint8_t *>(CAM::camera::instance().buf_start()[cam_buf.index]); // 获取当前帧
         // s_cap.last_index = cam_buf.index;
         esp_cache_msync(frame, CAM::camera::instance().buf_len()[cam_buf.index],
                         ESP_CACHE_MSYNC_FLAG_DIR_M2C); // 同步缓冲
+        gpio_set_level(GPIO_LED, 0);
 
         dl::image::img_t raw{
             nullptr,
@@ -103,7 +127,6 @@ void capture_process(void *argv)
             dl::image::DL_IMAGE_PIX_TYPE_RGB565LE};
         dl::image::ImageTransformer transformer;
         raw.data = static_cast<void *>(frame);
-        // ESP_LOGI(TAG,"%d %d->%d %d",raw.height,raw.width,args->cropped_buf.height,args->cropped_buf.width);
         transformer.set_src_img(raw);
         transformer.set_dst_img(args->cropped_buf);
         transformer.set_src_img_crop_area({420, 0, 1499, 1079});
@@ -127,23 +150,19 @@ void capture_process(void *argv)
         // 编码输出至sd卡
         if (sdcard::SDcard::instance().status())
         {
-            auto jpeg = dl::image::hw_encode_jpeg(args->cropped_buf);
+            // auto jpeg = dl::image::hw_encode_jpeg(args->cropped_buf);
 
-            fs::path file_path = std::format("/sdcard/{}/{}.jpg",
+            fs::path file_path = std::format("/sdcard/{}/{}.bmp",
                                              data.plate_id,
                                              data.time);
             if (!fs::exists(file_path.parent_path())) [[unlikely]] // 创建父目录
                 fs::create_directories(file_path.parent_path());
-            std::ofstream file(file_path, std::ios::binary);
-            if (!file.is_open()) [[unlikely]]
+                
+            if (yolo26::write_bmp_rgb565le(args->cropped_buf, file_path.c_str()) != ESP_OK)
             {
-                ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
+                ESP_LOGE(TAG, "Failed to write BMP: %s", file_path.c_str());
                 continue;
             }
-
-            file.write(static_cast<char *>(jpeg.data), jpeg.data_len);
-            file.close(); // 关闭文件
-            heap_caps_free(jpeg.data);
             ESP_LOGI(TAG, "Write to path: %s", file_path.c_str());
         }
 
@@ -264,6 +283,12 @@ void detect_abnormal_process(void *argv)
             if (res)
             {
                 status = true;
+                esp_mqtt_client_publish(MQTT::MQTT::instance().mqtt_handle(),
+                                        std::format("device/{}/warn", IOT::get_mac()).c_str(),
+                                        "competitor",
+                                        0,
+                                        1,
+                                        0);
                 break;
             }
         }
@@ -283,7 +308,7 @@ void upload_request_process(void *argv)
     {
         xQueueReceive(args->request_upload, &data, portMAX_DELAY);
 
-        std::string img_path = std::format("/sdcard/{}/{}.jpg",
+        std::string img_path = std::format("/sdcard/{}/{}.bmp",
                                            data.plate_id,
                                            data.time);
         std::string txt_path = std::format("/sdcard/{}/{}.txt",
@@ -360,22 +385,15 @@ void report_env_process(void *argv)
 {
     const char *TAG = "report env";
     auto args = static_cast<report_env_process_args *>(argv);
-    // sensors_data_t data;
-    // sensor::SHT3x_data data;
     char current_day[20];
     char current_time[20];
     TickType_t last_wake_time;
-    // uint8_t cnt;
-    // float temp, hum;
-    // uint16_t co2;
     ESP_LOGI(TAG, "report env process start.");
 
     while (true)
     {
         last_wake_time = xTaskGetTickCount();
 
-        // sensors_driver_read(&data);
-        // data=sensor::SHT3x::instance().read_data();
         float temp = sensor::SHT3x::instance().temp();
         float hum = sensor::SHT3x::instance().hum();
         time_t now = time(NULL); // 秒级时间戳
@@ -392,31 +410,6 @@ void report_env_process(void *argv)
             ESP_LOGE(TAG, "Cannot openfile: %s", file_path.c_str());
             continue;
         }
-
-        // cnt = 0;
-        // do
-        // {
-        //     xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-        //     sensors_driver_read(&data);
-        //     xSemaphoreGive(i2c_mutex);
-        //     if (data.sht_valid)
-        //     {
-        //         file << std::format("{} {:<6.1f} {:<6.1f}\n",
-        //                             current_time, data.temperature_c, data.humidity_rh);
-        //         temp = data.temperature_c;
-        //         hum = data.humidity_rh;
-        //         break;
-        //     }
-        //     cnt++;
-        //     vTaskDelay(pdMS_TO_TICKS(5));
-        // } while (cnt < 5);
-        // if (!data.sht_valid)
-        // {
-        //     file << std::format("{} {:<6} {:<6}\n",
-        //                         current_time, "Err", "Err");
-        //     temp = NAN;
-        //     hum = NAN;
-        // }
 
         IOT::report_env(temp, hum);
         file.close(); // 关闭文件
