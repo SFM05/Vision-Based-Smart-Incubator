@@ -266,7 +266,7 @@ void detect_abnormal_process(void *argv)
         xSemaphoreTake(args->start_detect, portMAX_DELAY);
 
         transformer.set_src_img(args->cropped_buf);
-        transformer.set_dst_img(args->cropped_buf);
+        transformer.set_dst_img(resized_img);
         transformer.transform();
         taskYIELD();
 

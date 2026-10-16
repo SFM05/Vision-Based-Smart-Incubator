@@ -149,7 +149,7 @@ void setup_scr_screen_2(lv_ui *ui)
 
     //Write codes screen_2_Count_interval
     ui->screen_2_Count_interval = lv_dropdown_create(ui->screen_2);
-    lv_dropdown_set_options(ui->screen_2_Count_interval, "10s\n10min\n30min");
+    lv_dropdown_set_options(ui->screen_2_Count_interval, "30s\n10min\n30min");
     lv_obj_set_pos(ui->screen_2_Count_interval, 10, 120);
     lv_obj_set_size(ui->screen_2_Count_interval, 150, 30);
 

@@ -250,38 +250,6 @@ void env_display_process(void *argv)
         lv_obj_invalidate(guider_ui.screen_1_Humidity);
         lv_unlock();
 
-        // cnt = 0;
-        // do
-        // {
-        //     xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-        //     sensors_driver_read(&data);
-        //     xSemaphoreGive(i2c_mutex);
-        //     if (data.sht_valid)
-        //     {
-        //         lv_lock();
-        //         lv_label_set_text_fmt(guider_ui.screen_1_Temperature,
-        //                               "Temp: %.1f", data.temperature_c);
-        //         lv_label_set_text_fmt(guider_ui.screen_1_Humidity,
-        //                               "Hum: %.1f", data.humidity_rh);
-        //         lv_obj_invalidate(guider_ui.screen_1_Temperature);
-        //         lv_obj_invalidate(guider_ui.screen_1_Humidity);
-        //         lv_unlock();
-        //         break;
-        //     }
-        //     cnt++;
-        //     vTaskDelay(pdMS_TO_TICKS(5));
-        // } while (cnt < 5);
-        // if (!data.sht_valid)
-        // {
-        //     lv_lock();
-        //     lv_label_set_text(guider_ui.screen_1_Temperature, "Temp: Err");
-        //     lv_label_set_text(guider_ui.screen_1_Humidity, "Hum: Err");
-        //     lv_obj_invalidate(guider_ui.screen_1_Temperature);
-        //     lv_obj_invalidate(guider_ui.screen_1_Humidity);
-        //     lv_unlock();
-        //     i2c_master_bus_reset(*bus);
-        // }
-
         ESP_LOGI(TAG, "%d", uxTaskGetStackHighWaterMark(nullptr));
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -295,10 +263,16 @@ void show_abnormal_process(void *argv)
     while (true)
     {
         xQueueReceive(*queue, &status, portMAX_DELAY);
+        lv_lock();
         if (status)
+        {
             lv_led_set_color(guider_ui.screen_1_led, lv_color_hex(0xDC143C));
+        }
         else
+        {
             lv_led_set_color(guider_ui.screen_1_led, lv_color_hex(0x7FFF00));
+        }
         lv_obj_invalidate(guider_ui.screen_1_led);
+        lv_unlock();
     }
 }

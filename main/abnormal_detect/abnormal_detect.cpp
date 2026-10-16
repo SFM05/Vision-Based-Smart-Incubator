@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <numbers>
 
 #include "abnormal_detect.hpp"
@@ -30,18 +31,19 @@ void extract_base_features(const dl::image::img_t &src,
     {
         for (uint16_t y = left_y; y < right_y; y++)
         {
-            uint8_t r = *(img + (src.width * y + x));
-            uint8_t g = *(img + (src.width * y + x) + 1);
-            uint8_t b = *(img + (src.width * y + x) + 2);
+            const uint8_t *pixel = img + y * src.row_step() + x * src.col_step();
+            uint8_t r = pixel[0];
+            uint8_t g = pixel[1];
+            uint8_t b = pixel[2];
 
             // 计算颜色矩
             color_monent_temp[0] += r;
-            color_monent_temp[1] += r * r;
-            color_monent_temp[2] += g;
-            color_monent_temp[3] += g * g;
-            color_monent_temp[4] += b;
+            color_monent_temp[1] += g;
+            color_monent_temp[2] += b;
+            color_monent_temp[3] += r * r;
+            color_monent_temp[4] += g * g;
             color_monent_temp[5] += b * b;
-            uint16_t gray = (299 * r + 587 * g + 114 * b) / 1000;
+            uint16_t gray = (299 * static_cast<uint32_t>(r) + 587 * static_cast<uint32_t>(g) + 114 * static_cast<uint32_t>(b)) / 1000;
             color_monent_temp[6] += gray;
             color_monent_temp[7] += gray * gray;
 
@@ -51,15 +53,26 @@ void extract_base_features(const dl::image::img_t &src,
             color_histogram[2][b >> 6] += 1;
         }
     }
-    uint16_t area_size = (right_x - left_x) * (right_y - left_y);
-    for (uint16_t i = 0; i < 8; i += 2)
-        color_monent[i] = static_cast<float>(color_monent_temp[i]) / area_size;
-    for (uint16_t i = 1; i < 8; i += 2)
-    {
-        float mean = static_cast<float>(color_monent_temp[i - 1]) / area_size;
-        float sq_mean = static_cast<float>(color_monent_temp[i]) / area_size;
-        color_monent[i] = std::sqrt(sq_mean - mean * mean);
-    }
+    uint32_t area_size = static_cast<uint32_t>(right_x - left_x) * static_cast<uint32_t>(right_y - left_y);
+
+    float r_mean = static_cast<float>(color_monent_temp[0]) / area_size;
+    float g_mean = static_cast<float>(color_monent_temp[1]) / area_size;
+    float b_mean = static_cast<float>(color_monent_temp[2]) / area_size;
+    float r_var = static_cast<float>(color_monent_temp[3]) / area_size - r_mean * r_mean;
+    float g_var = static_cast<float>(color_monent_temp[4]) / area_size - g_mean * g_mean;
+    float b_var = static_cast<float>(color_monent_temp[5]) / area_size - b_mean * b_mean;
+    float gray_mean = static_cast<float>(color_monent_temp[6]) / area_size;
+    float gray_var = static_cast<float>(color_monent_temp[7]) / area_size - gray_mean * gray_mean;
+
+    color_monent[0] = r_mean;
+    color_monent[1] = g_mean;
+    color_monent[2] = b_mean;
+    color_monent[3] = std::sqrt(r_var);
+    color_monent[4] = std::sqrt(g_var);
+    color_monent[5] = std::sqrt(b_var);
+    color_monent[6] = gray_mean;
+    color_monent[7] = std::sqrt(gray_var);
+
     for (uint16_t i = 0; i < 3; i++)
         for (uint16_t j = 0; j < 4; j++)
             color_histogram[i][j] /= area_size;
@@ -143,6 +156,11 @@ bool inference(const dl::image::img_t &src,
     // 推理
     float score = clf_bias;
     for (int i = 0; i < CLF_FEAT_DIM; i++)
+    {
+        // std::cout << input_feature[i] << ' ';
         score += clf_weights[i] * input_feature[i];
+    }
+    std::cout << '\n'
+              << score;
     return (score > CLF_THRESHOLD_F32);
 }

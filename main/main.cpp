@@ -224,7 +224,7 @@ extern "C" void app_main(void)
     static QueueHandle_t capture_request_queue = xQueueCreate(2, sizeof(frame_meta_data));
     static SemaphoreHandle_t flush_screen = xSemaphoreCreateBinary();
     static std::atomic<uint32_t> capture_delay;
-    capture_delay.store(10000);
+    capture_delay.store(30 * 1000);
     static std::atomic<bool> running = false;
     static TaskHandle_t capture_handle = nullptr;
     static capture_process_args capture_args{

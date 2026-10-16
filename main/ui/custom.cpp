@@ -55,8 +55,8 @@ extern "C"
         {
             lv_obj_t *dd = lv_event_get_target(e);
             uint16_t idx = lv_dropdown_get_selected(dd);
-            // idx: 0="10s", 1="10min", 2="30min"
-            constexpr uint32_t DELAYS[] = {10 * 1000, 10 * 60 * 1000, 30 * 60 * 1000};
+            // idx: 0="30s", 1="10min", 2="30min"
+            constexpr uint32_t DELAYS[] = {30 * 1000, 10 * 60 * 1000, 30 * 60 * 1000};
             args->delay.store(DELAYS[idx]);
             if (!args->running.load())
                 xTaskAbortDelay(args->capture_handle);
